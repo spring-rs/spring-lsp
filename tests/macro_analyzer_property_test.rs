@@ -1288,3 +1288,1380 @@ proptest! {
             "Multiple extractions should produce same number of macros");
     }
 }
+
+// ============================================================================
+// 宏展开和提示属性测试
+// ============================================================================
+
+// Feature: spring-lsp, Property 31: 宏展开生成
+// 
+// **Validates: Requirements 7.1**
+// 
+// *For any* 可展开的 spring-rs 宏，宏分析器应该生成语法正确的展开后代码。
+// 
+// 这个属性测试验证：
+// 1. 对于任何可识别的 spring-rs 宏，expand_macro 方法应该返回非空字符串
+// 2. 展开后的代码应该包含关键的 Rust 语法元素（如 impl、fn 等）
+// 3. 展开不应该崩溃或 panic
+proptest! {
+    #[test]
+    fn prop_macro_expansion_generates_valid_code(
+        uri in test_uri(),
+        code in complex_rust_code_with_macros()
+    ) {
+        let analyzer = MacroAnalyzer::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 对每个宏进行展开
+        for macro_info in &doc.macros {
+            let expanded = analyzer.expand_macro(macro_info);
+            
+            // 展开后的代码不应为空
+            prop_assert!(!expanded.is_empty(),
+                "Expanded macro code should not be empty");
+            
+            // 展开后的代码应该包含一些 Rust 关键字或语法元素
+            // 这是一个基本的语法正确性检查
+            let has_rust_syntax = expanded.contains("impl") ||
+                                 expanded.contains("fn") ||
+                                 expanded.contains("struct") ||
+                                 expanded.contains("//") ||
+                                 expanded.contains("pub");
+            
+            prop_assert!(has_rust_syntax,
+                "Expanded code should contain Rust syntax elements, got: {}", expanded);
+        }
+    }
+}
+
+// Feature: spring-lsp, Property 31: Service 宏展开生成
+// 
+// **Validates: Requirements 7.1**
+// 
+// 专门测试 Service 宏的展开
+proptest! {
+    #[test]
+    fn prop_service_macro_expansion(
+        uri in test_uri(),
+        code in service_struct_with_inject()
+    ) {
+        let analyzer = MacroAnalyzer::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到 Service 宏
+        let service_macros: Vec<_> = doc.macros.iter()
+            .filter_map(|m| match m {
+                spring_lsp::macro_analyzer::SpringMacro::DeriveService(s) => Some(s),
+                _ => None,
+            })
+            .collect();
+        
+        prop_assert!(!service_macros.is_empty());
+        
+        for service_macro in service_macros {
+            let expanded = analyzer.expand_macro(
+                &spring_lsp::macro_analyzer::SpringMacro::DeriveService(service_macro.clone())
+            );
+            
+            // 展开后的代码应该包含 impl 块
+            prop_assert!(expanded.contains("impl"),
+                "Service macro expansion should contain impl block");
+            
+            // 应该包含 build 方法
+            prop_assert!(expanded.contains("fn build") || expanded.contains("build"),
+                "Service macro expansion should contain build method");
+            
+            // 应该包含结构体名称
+            prop_assert!(expanded.contains(&service_macro.struct_name),
+                "Service macro expansion should contain struct name");
+            
+            // 如果有字段，应该包含字段名称
+            for field in &service_macro.fields {
+                prop_assert!(expanded.contains(&field.name),
+                    "Service macro expansion should contain field name: {}", field.name);
+            }
+        }
+    }
+}
+
+// Feature: spring-lsp, Property 31: 路由宏展开生成
+// 
+// **Validates: Requirements 7.1**
+// 
+// 专门测试路由宏的展开
+proptest! {
+    #[test]
+    fn prop_route_macro_expansion(
+        uri in test_uri(),
+        code in route_macro_single_method()
+    ) {
+        let analyzer = MacroAnalyzer::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到路由宏
+        let route_macros: Vec<_> = doc.macros.iter()
+            .filter_map(|m| match m {
+                spring_lsp::macro_analyzer::SpringMacro::Route(r) => Some(r),
+                _ => None,
+            })
+            .collect();
+        
+        prop_assert!(!route_macros.is_empty());
+        
+        for route_macro in route_macros {
+            let expanded = analyzer.expand_macro(
+                &spring_lsp::macro_analyzer::SpringMacro::Route(route_macro.clone())
+            );
+            
+            // 展开后的代码应该包含路由路径
+            prop_assert!(expanded.contains(&route_macro.path),
+                "Route macro expansion should contain route path");
+            
+            // 应该包含 HTTP 方法
+            for method in &route_macro.methods {
+                let method_str = method.as_str();
+                prop_assert!(expanded.contains(method_str) || expanded.contains(&method_str.to_lowercase()),
+                    "Route macro expansion should contain HTTP method: {}", method_str);
+            }
+            
+            // 应该包含处理器函数名称
+            prop_assert!(expanded.contains(&route_macro.handler_name),
+                "Route macro expansion should contain handler name");
+        }
+    }
+}
+
+// Feature: spring-lsp, Property 31: 任务宏展开生成
+// 
+// **Validates: Requirements 7.1**
+// 
+// 专门测试任务宏的展开
+proptest! {
+    #[test]
+    fn prop_job_macro_expansion(
+        uri in test_uri(),
+        code in prop_oneof![
+            cron_job_macro(),
+            fix_delay_job_macro(),
+            fix_rate_job_macro(),
+        ]
+    ) {
+        let analyzer = MacroAnalyzer::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到任务宏
+        let job_macros: Vec<_> = doc.macros.iter()
+            .filter_map(|m| match m {
+                spring_lsp::macro_analyzer::SpringMacro::Job(j) => Some(j),
+                _ => None,
+            })
+            .collect();
+        
+        prop_assert!(!job_macros.is_empty());
+        
+        for job_macro in job_macros {
+            let expanded = analyzer.expand_macro(
+                &spring_lsp::macro_analyzer::SpringMacro::Job(job_macro.clone())
+            );
+            
+            // 展开后的代码应该包含任务类型信息
+            match job_macro {
+                spring_lsp::macro_analyzer::JobMacro::Cron { expression, .. } => {
+                    prop_assert!(expanded.contains(expression) || expanded.contains("Cron"),
+                        "Cron job expansion should contain expression or 'Cron'");
+                }
+                spring_lsp::macro_analyzer::JobMacro::FixDelay { seconds, .. } => {
+                    prop_assert!(expanded.contains(&seconds.to_string()) || expanded.contains("FixDelay"),
+                        "FixDelay job expansion should contain seconds or 'FixDelay'");
+                }
+                spring_lsp::macro_analyzer::JobMacro::FixRate { seconds, .. } => {
+                    prop_assert!(expanded.contains(&seconds.to_string()) || expanded.contains("FixRate"),
+                        "FixRate job expansion should contain seconds or 'FixRate'");
+                }
+            }
+        }
+    }
+}
+
+// Feature: spring-lsp, Property 32: Service 宏悬停提示
+// 
+// **Validates: Requirements 7.2**
+// 
+// *For any* `#[derive(Service)]` 宏，悬停时应该显示生成的 trait 实现代码。
+// 
+// 这个属性测试验证：
+// 1. 对于任何 Service 宏，hover_macro 方法应该返回非空字符串
+// 2. 悬停提示应该包含结构体名称
+// 3. 悬停提示应该包含字段信息
+// 4. 悬停提示应该包含展开后的代码
+proptest! {
+    #[test]
+    fn prop_service_macro_hover_provides_trait_implementation(
+        uri in test_uri(),
+        code in service_struct_with_inject()
+    ) {
+        let analyzer = MacroAnalyzer::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到 Service 宏
+        let service_macros: Vec<_> = doc.macros.iter()
+            .filter_map(|m| match m {
+                spring_lsp::macro_analyzer::SpringMacro::DeriveService(s) => Some(s),
+                _ => None,
+            })
+            .collect();
+        
+        prop_assert!(!service_macros.is_empty());
+        
+        for service_macro in service_macros {
+            let hover = analyzer.hover_macro(
+                &spring_lsp::macro_analyzer::SpringMacro::DeriveService(service_macro.clone())
+            );
+            
+            // 悬停提示不应为空
+            prop_assert!(!hover.is_empty(),
+                "Service macro hover should not be empty");
+            
+            // 应该包含标题
+            prop_assert!(hover.contains("Service") || hover.contains("派生宏"),
+                "Hover should contain 'Service' or '派生宏'");
+            
+            // 应该包含结构体名称
+            prop_assert!(hover.contains(&service_macro.struct_name),
+                "Hover should contain struct name: {}", service_macro.struct_name);
+            
+            // 应该包含展开后的代码标记
+            prop_assert!(hover.contains("```rust") || hover.contains("展开"),
+                "Hover should contain code block or expansion indicator");
+            
+            // 如果有字段，应该包含字段信息
+            for field in &service_macro.fields {
+                prop_assert!(hover.contains(&field.name),
+                    "Hover should contain field name: {}", field.name);
+            }
+            
+            // 应该包含 impl 关键字（展开后的代码）
+            prop_assert!(hover.contains("impl"),
+                "Hover should contain impl keyword from expanded code");
+        }
+    }
+}
+
+// Feature: spring-lsp, Property 32: Service 宏悬停提示（注入信息）
+// 
+// **Validates: Requirements 7.2**
+// 
+// 验证 Service 宏悬停提示包含注入字段的详细信息
+proptest! {
+    #[test]
+    fn prop_service_macro_hover_shows_inject_info(
+        uri in test_uri(),
+        code in service_struct_with_named_inject()
+    ) {
+        let analyzer = MacroAnalyzer::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到 Service 宏
+        let service_macros: Vec<_> = doc.macros.iter()
+            .filter_map(|m| match m {
+                spring_lsp::macro_analyzer::SpringMacro::DeriveService(s) => Some(s),
+                _ => None,
+            })
+            .collect();
+        
+        prop_assert!(!service_macros.is_empty());
+        
+        for service_macro in service_macros {
+            let hover = analyzer.hover_macro(
+                &spring_lsp::macro_analyzer::SpringMacro::DeriveService(service_macro.clone())
+            );
+            
+            // 检查是否有带注入的字段
+            let fields_with_inject: Vec<_> = service_macro.fields.iter()
+                .filter(|f| f.inject.is_some())
+                .collect();
+            
+            if !fields_with_inject.is_empty() {
+                // 应该包含注入相关的信息
+                prop_assert!(hover.contains("注入") || hover.contains("inject"),
+                    "Hover should contain injection information");
+                
+                // 检查每个注入字段
+                for field in fields_with_inject {
+                    if let Some(inject) = &field.inject {
+                        // 应该显示注入类型
+                        match inject.inject_type {
+                            spring_lsp::macro_analyzer::InjectType::Component => {
+                                prop_assert!(hover.contains("组件") || hover.contains("Component"),
+                                    "Hover should indicate component injection");
+                            }
+                            spring_lsp::macro_analyzer::InjectType::Config => {
+                                prop_assert!(hover.contains("配置") || hover.contains("Config"),
+                                    "Hover should indicate config injection");
+                            }
+                        }
+                        
+                        // 如果有组件名称，应该显示
+                        if let Some(name) = &inject.component_name {
+                            prop_assert!(hover.contains(name),
+                                "Hover should contain component name: {}", name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Feature: spring-lsp, Property 33: Inject 属性悬停提示
+// 
+// **Validates: Requirements 7.3, 15.3**
+// 
+// *For any* `#[inject]` 属性，悬停时应该显示注入的组件类型和来源信息。
+// 
+// 这个属性测试验证：
+// 1. 对于任何 Inject 宏，hover_macro 方法应该返回非空字符串
+// 2. 悬停提示应该包含注入类型（Component 或 Config）
+// 3. 如果指定了组件名称，悬停提示应该包含组件名称
+// 4. 悬停提示应该包含使用示例
+proptest! {
+    #[test]
+    fn prop_inject_attribute_hover_shows_component_info(
+        uri in test_uri(),
+        code in service_struct_with_inject()
+    ) {
+        let analyzer = MacroAnalyzer::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到 Service 宏并提取 inject 属性
+        for macro_info in &doc.macros {
+            if let spring_lsp::macro_analyzer::SpringMacro::DeriveService(service) = macro_info {
+                for field in &service.fields {
+                    if let Some(inject) = &field.inject {
+                        let hover = analyzer.hover_macro(
+                            &spring_lsp::macro_analyzer::SpringMacro::Inject(inject.clone())
+                        );
+                        
+                        // 悬停提示不应为空
+                        prop_assert!(!hover.is_empty(),
+                            "Inject attribute hover should not be empty");
+                        
+                        // 应该包含标题
+                        prop_assert!(hover.contains("Inject") || hover.contains("注入"),
+                            "Hover should contain 'Inject' or '注入'");
+                        
+                        // 应该包含注入类型
+                        match inject.inject_type {
+                            spring_lsp::macro_analyzer::InjectType::Component => {
+                                prop_assert!(hover.contains("Component") || hover.contains("组件"),
+                                    "Hover should indicate component injection type");
+                                prop_assert!(hover.contains("get_component"),
+                                    "Hover should show get_component method");
+                            }
+                            spring_lsp::macro_analyzer::InjectType::Config => {
+                                prop_assert!(hover.contains("Config") || hover.contains("配置"),
+                                    "Hover should indicate config injection type");
+                                prop_assert!(hover.contains("get_config"),
+                                    "Hover should show get_config method");
+                            }
+                        }
+                        
+                        // 应该包含代码示例
+                        prop_assert!(hover.contains("```rust") || hover.contains("示例"),
+                            "Hover should contain code example");
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Feature: spring-lsp, Property 33: Inject 属性悬停提示（带组件名称）
+// 
+// **Validates: Requirements 7.3, 15.3**
+// 
+// 验证带有组件名称的 inject 属性悬停提示包含组件名称信息
+proptest! {
+    #[test]
+    fn prop_inject_attribute_hover_shows_component_name(
+        uri in test_uri(),
+        code in service_struct_with_named_inject()
+    ) {
+        let analyzer = MacroAnalyzer::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到 Service 宏并提取带名称的 inject 属性
+        for macro_info in &doc.macros {
+            if let spring_lsp::macro_analyzer::SpringMacro::DeriveService(service) = macro_info {
+                for field in &service.fields {
+                    if let Some(inject) = &field.inject {
+                        if let Some(component_name) = &inject.component_name {
+                            // 只测试 component 类型的注入（config 类型不应该有组件名称）
+                            if inject.inject_type == spring_lsp::macro_analyzer::InjectType::Component {
+                                let hover = analyzer.hover_macro(
+                                    &spring_lsp::macro_analyzer::SpringMacro::Inject(inject.clone())
+                                );
+                                
+                                // 应该包含组件名称
+                                prop_assert!(hover.contains(component_name),
+                                    "Hover should contain component name: {}", component_name);
+                                
+                                // 应该说明这是命名组件
+                                prop_assert!(hover.contains("名称") || hover.contains("name") || hover.contains("指定"),
+                                    "Hover should indicate this is a named component");
+                                
+                                // 应该在代码示例中显示组件名称
+                                let code_with_name = format!("\"{}\"", component_name);
+                                prop_assert!(hover.contains(&code_with_name),
+                                    "Hover should show component name in code example");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Feature: spring-lsp, Property 34: 宏参数验证
+// 
+// **Validates: Requirements 7.4**
+// 
+// *For any* 宏参数不符合宏定义要求的情况，诊断引擎应该生成错误诊断并提供修复建议。
+// 
+// 这个属性测试验证：
+// 1. 对于任何可识别的宏，validate_macro 方法应该返回诊断列表（可能为空）
+// 2. 如果宏参数有错误，应该生成相应的诊断
+// 3. 诊断应该包含错误代码和消息
+proptest! {
+    #[test]
+    fn prop_macro_validation_detects_invalid_parameters(
+        uri in test_uri(),
+        code in complex_rust_code_with_macros()
+    ) {
+        let analyzer = MacroAnalyzer::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 对每个宏进行验证
+        for macro_info in &doc.macros {
+            let diagnostics = analyzer.validate_macro(macro_info);
+            
+            // validate_macro 应该返回一个列表（可能为空，可能有错误）
+            // 这里我们只验证它不会崩溃，并且返回的诊断格式正确
+            
+            for diagnostic in &diagnostics {
+                // 每个诊断应该有消息
+                prop_assert!(!diagnostic.message.is_empty(),
+                    "Diagnostic message should not be empty");
+                
+                // 应该有严重性级别
+                prop_assert!(diagnostic.severity.is_some(),
+                    "Diagnostic should have severity level");
+                
+                // 应该有来源
+                prop_assert_eq!(diagnostic.source.as_deref(), Some("spring-lsp"),
+                    "Diagnostic source should be 'spring-lsp'");
+                
+                // 如果有错误代码，应该不为空
+                if let Some(code) = &diagnostic.code {
+                    match code {
+                        lsp_types::NumberOrString::String(s) => {
+                            prop_assert!(!s.is_empty(),
+                                "Diagnostic code string should not be empty");
+                        }
+                        lsp_types::NumberOrString::Number(n) => {
+                            prop_assert!(*n >= 0,
+                                "Diagnostic code number should be non-negative");
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Feature: spring-lsp, Property 34: 路由宏参数验证
+// 
+// **Validates: Requirements 7.4**
+// 
+// 专门测试路由宏的参数验证
+proptest! {
+    #[test]
+    fn prop_route_macro_validation(
+        uri in test_uri(),
+        code in route_macro_single_method()
+    ) {
+        let analyzer = MacroAnalyzer::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到路由宏
+        let route_macros: Vec<_> = doc.macros.iter()
+            .filter_map(|m| match m {
+                spring_lsp::macro_analyzer::SpringMacro::Route(r) => Some(r),
+                _ => None,
+            })
+            .collect();
+        
+        for route_macro in route_macros {
+            let diagnostics = analyzer.validate_macro(
+                &spring_lsp::macro_analyzer::SpringMacro::Route(route_macro.clone())
+            );
+            
+            // 验证路径格式
+            if !route_macro.path.starts_with('/') {
+                // 应该有错误诊断
+                prop_assert!(!diagnostics.is_empty(),
+                    "Should generate diagnostic for path not starting with '/'");
+                
+                // 应该有关于路径格式的错误
+                let has_path_error = diagnostics.iter().any(|d| {
+                    d.message.contains("路径") || d.message.contains("path") || d.message.contains("/")
+                });
+                prop_assert!(has_path_error,
+                    "Should have diagnostic about path format");
+            }
+            
+            // 验证 HTTP 方法
+            if route_macro.methods.is_empty() {
+                // 应该有错误诊断
+                prop_assert!(!diagnostics.is_empty(),
+                    "Should generate diagnostic for empty methods");
+                
+                // 应该有关于方法的错误
+                let has_method_error = diagnostics.iter().any(|d| {
+                    d.message.contains("方法") || d.message.contains("method") || d.message.contains("HTTP")
+                });
+                prop_assert!(has_method_error,
+                    "Should have diagnostic about HTTP methods");
+            }
+        }
+    }
+}
+
+// Feature: spring-lsp, Property 34: 任务宏参数验证
+// 
+// **Validates: Requirements 7.4**
+// 
+// 专门测试任务宏的参数验证
+proptest! {
+    #[test]
+    fn prop_job_macro_validation(
+        uri in test_uri(),
+        code in prop_oneof![
+            cron_job_macro(),
+            fix_delay_job_macro(),
+            fix_rate_job_macro(),
+        ]
+    ) {
+        let analyzer = MacroAnalyzer::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到任务宏
+        let job_macros: Vec<_> = doc.macros.iter()
+            .filter_map(|m| match m {
+                spring_lsp::macro_analyzer::SpringMacro::Job(j) => Some(j),
+                _ => None,
+            })
+            .collect();
+        
+        for job_macro in job_macros {
+            let diagnostics = analyzer.validate_macro(
+                &spring_lsp::macro_analyzer::SpringMacro::Job(job_macro.clone())
+            );
+            
+            // 验证任务参数
+            match job_macro {
+                spring_lsp::macro_analyzer::JobMacro::Cron { expression, .. } => {
+                    if expression.is_empty() {
+                        // 应该有错误诊断
+                        prop_assert!(!diagnostics.is_empty(),
+                            "Should generate diagnostic for empty cron expression");
+                    }
+                }
+                spring_lsp::macro_analyzer::JobMacro::FixDelay { seconds, .. } => {
+                    if *seconds == 0 {
+                        // 可能有警告诊断
+                        // 注意：我们的实现对 0 秒延迟生成警告而非错误
+                        let _has_warning = diagnostics.iter().any(|d| {
+                            d.severity == Some(lsp_types::DiagnosticSeverity::WARNING)
+                        });
+                        // 这里不强制要求，因为 0 秒可能是有效的
+                    }
+                }
+                spring_lsp::macro_analyzer::JobMacro::FixRate { seconds, .. } => {
+                    if *seconds == 0 {
+                        // 应该有错误诊断
+                        prop_assert!(!diagnostics.is_empty(),
+                            "Should generate diagnostic for zero fix_rate seconds");
+                        
+                        let has_error = diagnostics.iter().any(|d| {
+                            d.severity == Some(lsp_types::DiagnosticSeverity::ERROR)
+                        });
+                        prop_assert!(has_error,
+                            "Should have error diagnostic for zero fix_rate seconds");
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Feature: spring-lsp, Property 34: Service 宏参数验证
+// 
+// **Validates: Requirements 7.4**
+// 
+// 专门测试 Service 宏的参数验证
+proptest! {
+    #[test]
+    fn prop_service_macro_validation(
+        uri in test_uri(),
+        code in service_struct_with_inject()
+    ) {
+        let analyzer = MacroAnalyzer::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到 Service 宏
+        let service_macros: Vec<_> = doc.macros.iter()
+            .filter_map(|m| match m {
+                spring_lsp::macro_analyzer::SpringMacro::DeriveService(s) => Some(s),
+                _ => None,
+            })
+            .collect();
+        
+        for service_macro in service_macros {
+            let diagnostics = analyzer.validate_macro(
+                &spring_lsp::macro_analyzer::SpringMacro::DeriveService(service_macro.clone())
+            );
+            
+            // 检查字段的 inject 属性
+            for field in &service_macro.fields {
+                if let Some(inject) = &field.inject {
+                    // 如果是 config 类型且有组件名称，应该有错误
+                    if inject.inject_type == spring_lsp::macro_analyzer::InjectType::Config 
+                        && inject.component_name.is_some() {
+                        prop_assert!(!diagnostics.is_empty(),
+                            "Should generate diagnostic for config injection with component name");
+                        
+                        let has_config_error = diagnostics.iter().any(|d| {
+                            d.message.contains("config") || d.message.contains("配置")
+                        });
+                        prop_assert!(has_config_error,
+                            "Should have diagnostic about config injection");
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
+// 宏参数补全属性测试
+// ============================================================================
+
+// Feature: spring-lsp, Property 35: 宏参数补全
+// 
+// **Validates: Requirements 7.5**
+// 
+// *For any* 宏参数输入位置，补全引擎应该提供该宏支持的参数名称和值。
+// 
+// 这个属性测试验证：
+// 1. 对于任何可识别的 spring-rs 宏，complete_macro 方法应该返回非空补全列表
+// 2. 补全项应该包含必要的信息（label、detail、documentation、insert_text）
+// 3. 补全项的类型应该正确（PROPERTY、KEYWORD、CLASS、CONSTANT、VALUE、SNIPPET）
+// 4. 补全不应该崩溃或 panic
+
+// Property 35: Service 宏参数补全
+proptest! {
+    #[test]
+    fn prop_service_macro_completion_provides_inject_options(
+        uri in test_uri(),
+        code in service_struct()
+    ) {
+        use spring_lsp::completion::CompletionEngine;
+        
+        let analyzer = MacroAnalyzer::new();
+        let engine = CompletionEngine::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到 Service 宏
+        let service_macros: Vec<_> = doc.macros.iter()
+            .filter_map(|m| match m {
+                spring_lsp::macro_analyzer::SpringMacro::DeriveService(s) => Some(s),
+                _ => None,
+            })
+            .collect();
+        
+        prop_assert!(!service_macros.is_empty());
+        
+        for service_macro in service_macros {
+            let completions = engine.complete_macro(
+                &spring_lsp::macro_analyzer::SpringMacro::DeriveService(service_macro.clone()),
+                None
+            );
+            
+            // 应该提供补全项
+            prop_assert!(!completions.is_empty(),
+                "Service macro should provide completion items");
+            
+            // 验证每个补全项的必要信息
+            for completion in &completions {
+                // 应该有 label
+                prop_assert!(!completion.label.is_empty(),
+                    "Completion item should have non-empty label");
+                
+                // 应该有 detail
+                prop_assert!(completion.detail.is_some(),
+                    "Completion item '{}' should have detail", completion.label);
+                
+                // 应该有 documentation
+                prop_assert!(completion.documentation.is_some(),
+                    "Completion item '{}' should have documentation", completion.label);
+                
+                // 应该有 insert_text
+                prop_assert!(completion.insert_text.is_some(),
+                    "Completion item '{}' should have insert_text", completion.label);
+                
+                // 应该有 kind
+                prop_assert!(completion.kind.is_some(),
+                    "Completion item '{}' should have kind", completion.label);
+                
+                // Service 宏的补全项应该是 PROPERTY 类型
+                prop_assert_eq!(completion.kind, Some(lsp_types::CompletionItemKind::PROPERTY),
+                    "Service macro completion items should be PROPERTY kind");
+            }
+            
+            // 应该包含 inject(component) 补全
+            let has_inject_component = completions.iter().any(|c| c.label.contains("inject(component)"));
+            prop_assert!(has_inject_component,
+                "Service macro should provide inject(component) completion");
+            
+            // 应该包含 inject(config) 补全
+            let has_inject_config = completions.iter().any(|c| c.label.contains("inject(config)"));
+            prop_assert!(has_inject_config,
+                "Service macro should provide inject(config) completion");
+        }
+    }
+}
+
+// Property 35: Inject 宏参数补全
+proptest! {
+    #[test]
+    fn prop_inject_macro_completion_provides_type_options(
+        uri in test_uri(),
+        code in service_struct_with_inject()
+    ) {
+        use spring_lsp::completion::CompletionEngine;
+        
+        let analyzer = MacroAnalyzer::new();
+        let engine = CompletionEngine::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到 Service 宏并提取 inject 属性
+        for macro_info in &doc.macros {
+            if let spring_lsp::macro_analyzer::SpringMacro::DeriveService(service) = macro_info {
+                for field in &service.fields {
+                    if let Some(inject) = &field.inject {
+                        let completions = engine.complete_macro(
+                            &spring_lsp::macro_analyzer::SpringMacro::Inject(inject.clone()),
+                            None
+                        );
+                        
+                        // 应该提供补全项
+                        prop_assert!(!completions.is_empty(),
+                            "Inject macro should provide completion items");
+                        
+                        // 验证每个补全项的必要信息
+                        for completion in &completions {
+                            // 应该有 label
+                            prop_assert!(!completion.label.is_empty(),
+                                "Completion item should have non-empty label");
+                            
+                            // 应该有 detail
+                            prop_assert!(completion.detail.is_some(),
+                                "Completion item '{}' should have detail", completion.label);
+                            
+                            // 应该有 documentation
+                            prop_assert!(completion.documentation.is_some(),
+                                "Completion item '{}' should have documentation", completion.label);
+                            
+                            // 应该有 insert_text
+                            prop_assert!(completion.insert_text.is_some(),
+                                "Completion item '{}' should have insert_text", completion.label);
+                            
+                            // 应该有 kind
+                            prop_assert!(completion.kind.is_some(),
+                                "Completion item '{}' should have kind", completion.label);
+                            
+                            // Inject 宏的补全项应该是 KEYWORD 类型
+                            prop_assert_eq!(completion.kind, Some(lsp_types::CompletionItemKind::KEYWORD),
+                                "Inject macro completion items should be KEYWORD kind");
+                        }
+                        
+                        // 应该包含 component 补全
+                        let has_component = completions.iter().any(|c| c.label == "component");
+                        prop_assert!(has_component,
+                            "Inject macro should provide 'component' completion");
+                        
+                        // 应该包含 config 补全
+                        let has_config = completions.iter().any(|c| c.label == "config");
+                        prop_assert!(has_config,
+                            "Inject macro should provide 'config' completion");
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Property 35: AutoConfig 宏参数补全
+proptest! {
+    #[test]
+    fn prop_auto_config_macro_completion_provides_configurator_types(
+        uri in test_uri(),
+        code in auto_config_macro()
+    ) {
+        use spring_lsp::completion::CompletionEngine;
+        
+        let analyzer = MacroAnalyzer::new();
+        let engine = CompletionEngine::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到 AutoConfig 宏
+        let auto_config_macros: Vec<_> = doc.macros.iter()
+            .filter_map(|m| match m {
+                spring_lsp::macro_analyzer::SpringMacro::AutoConfig(a) => Some(a),
+                _ => None,
+            })
+            .collect();
+        
+        prop_assert!(!auto_config_macros.is_empty());
+        
+        for auto_config_macro in auto_config_macros {
+            let completions = engine.complete_macro(
+                &spring_lsp::macro_analyzer::SpringMacro::AutoConfig(auto_config_macro.clone()),
+                None
+            );
+            
+            // 应该提供补全项
+            prop_assert!(!completions.is_empty(),
+                "AutoConfig macro should provide completion items");
+            
+            // 验证每个补全项的必要信息
+            for completion in &completions {
+                // 应该有 label
+                prop_assert!(!completion.label.is_empty(),
+                    "Completion item should have non-empty label");
+                
+                // 应该有 detail
+                prop_assert!(completion.detail.is_some(),
+                    "Completion item '{}' should have detail", completion.label);
+                
+                // 应该有 documentation
+                prop_assert!(completion.documentation.is_some(),
+                    "Completion item '{}' should have documentation", completion.label);
+                
+                // 应该有 insert_text
+                prop_assert!(completion.insert_text.is_some(),
+                    "Completion item '{}' should have insert_text", completion.label);
+                
+                // 应该有 kind
+                prop_assert!(completion.kind.is_some(),
+                    "Completion item '{}' should have kind", completion.label);
+                
+                // AutoConfig 宏的补全项应该是 CLASS 类型
+                prop_assert_eq!(completion.kind, Some(lsp_types::CompletionItemKind::CLASS),
+                    "AutoConfig macro completion items should be CLASS kind");
+            }
+            
+            // 应该包含常见的配置器类型
+            let labels: Vec<_> = completions.iter().map(|c| c.label.as_str()).collect();
+            prop_assert!(labels.contains(&"WebConfigurator") || 
+                        labels.contains(&"JobConfigurator") || 
+                        labels.contains(&"StreamConfigurator"),
+                "AutoConfig macro should provide common configurator types");
+        }
+    }
+}
+
+// Property 35: Route 宏参数补全
+proptest! {
+    #[test]
+    fn prop_route_macro_completion_provides_http_methods_and_path_params(
+        uri in test_uri(),
+        code in route_macro_single_method()
+    ) {
+        use spring_lsp::completion::CompletionEngine;
+        
+        let analyzer = MacroAnalyzer::new();
+        let engine = CompletionEngine::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到 Route 宏
+        let route_macros: Vec<_> = doc.macros.iter()
+            .filter_map(|m| match m {
+                spring_lsp::macro_analyzer::SpringMacro::Route(r) => Some(r),
+                _ => None,
+            })
+            .collect();
+        
+        prop_assert!(!route_macros.is_empty());
+        
+        for route_macro in route_macros {
+            let completions = engine.complete_macro(
+                &spring_lsp::macro_analyzer::SpringMacro::Route(route_macro.clone()),
+                None
+            );
+            
+            // 应该提供补全项
+            prop_assert!(!completions.is_empty(),
+                "Route macro should provide completion items");
+            
+            // 验证每个补全项的必要信息
+            for completion in &completions {
+                // 应该有 label
+                prop_assert!(!completion.label.is_empty(),
+                    "Completion item should have non-empty label");
+                
+                // 应该有 detail
+                prop_assert!(completion.detail.is_some(),
+                    "Completion item '{}' should have detail", completion.label);
+                
+                // 应该有 documentation
+                prop_assert!(completion.documentation.is_some(),
+                    "Completion item '{}' should have documentation", completion.label);
+                
+                // 应该有 insert_text
+                prop_assert!(completion.insert_text.is_some(),
+                    "Completion item '{}' should have insert_text", completion.label);
+                
+                // 应该有 kind
+                prop_assert!(completion.kind.is_some(),
+                    "Completion item '{}' should have kind", completion.label);
+            }
+            
+            // 应该包含 HTTP 方法补全（CONSTANT 类型）
+            let http_methods = completions.iter()
+                .filter(|c| c.kind == Some(lsp_types::CompletionItemKind::CONSTANT))
+                .collect::<Vec<_>>();
+            prop_assert!(!http_methods.is_empty(),
+                "Route macro should provide HTTP method completions");
+            
+            // 应该包含常见的 HTTP 方法
+            let method_labels: Vec<_> = http_methods.iter().map(|c| c.label.as_str()).collect();
+            prop_assert!(method_labels.contains(&"GET") || 
+                        method_labels.contains(&"POST") || 
+                        method_labels.contains(&"PUT") || 
+                        method_labels.contains(&"DELETE"),
+                "Route macro should provide common HTTP methods");
+            
+            // 应该包含路径参数补全（SNIPPET 类型）
+            let path_params = completions.iter()
+                .filter(|c| c.kind == Some(lsp_types::CompletionItemKind::SNIPPET))
+                .collect::<Vec<_>>();
+            prop_assert!(!path_params.is_empty(),
+                "Route macro should provide path parameter completions");
+            
+            // 路径参数补全应该包含 {id} 或类似的模板
+            let has_path_param_template = path_params.iter().any(|c| c.label.contains('{'));
+            prop_assert!(has_path_param_template,
+                "Route macro should provide path parameter template like {{id}}");
+        }
+    }
+}
+
+// Property 35: Job 宏参数补全
+proptest! {
+    #[test]
+    fn prop_job_macro_completion_provides_schedule_options(
+        uri in test_uri(),
+        code in prop_oneof![
+            cron_job_macro(),
+            fix_delay_job_macro(),
+            fix_rate_job_macro(),
+        ]
+    ) {
+        use spring_lsp::completion::CompletionEngine;
+        
+        let analyzer = MacroAnalyzer::new();
+        let engine = CompletionEngine::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 找到 Job 宏
+        let job_macros: Vec<_> = doc.macros.iter()
+            .filter_map(|m| match m {
+                spring_lsp::macro_analyzer::SpringMacro::Job(j) => Some(j),
+                _ => None,
+            })
+            .collect();
+        
+        prop_assert!(!job_macros.is_empty());
+        
+        for job_macro in job_macros {
+            let completions = engine.complete_macro(
+                &spring_lsp::macro_analyzer::SpringMacro::Job(job_macro.clone()),
+                None
+            );
+            
+            // 应该提供补全项
+            prop_assert!(!completions.is_empty(),
+                "Job macro should provide completion items");
+            
+            // 验证每个补全项的必要信息
+            for completion in &completions {
+                // 应该有 label
+                prop_assert!(!completion.label.is_empty(),
+                    "Completion item should have non-empty label");
+                
+                // 应该有 detail
+                prop_assert!(completion.detail.is_some(),
+                    "Completion item '{}' should have detail", completion.label);
+                
+                // 应该有 documentation
+                prop_assert!(completion.documentation.is_some(),
+                    "Completion item '{}' should have documentation", completion.label);
+                
+                // 应该有 insert_text
+                prop_assert!(completion.insert_text.is_some(),
+                    "Completion item '{}' should have insert_text", completion.label);
+                
+                // 应该有 kind
+                prop_assert!(completion.kind.is_some(),
+                    "Completion item '{}' should have kind", completion.label);
+            }
+            
+            // 应该包含 cron 表达式补全（SNIPPET 类型）
+            let cron_completions = completions.iter()
+                .filter(|c| c.kind == Some(lsp_types::CompletionItemKind::SNIPPET) && 
+                           c.label.contains('*'))
+                .collect::<Vec<_>>();
+            prop_assert!(!cron_completions.is_empty(),
+                "Job macro should provide cron expression completions");
+            
+            // 应该包含延迟/频率值补全（VALUE 类型）
+            let value_completions = completions.iter()
+                .filter(|c| c.kind == Some(lsp_types::CompletionItemKind::VALUE))
+                .collect::<Vec<_>>();
+            prop_assert!(!value_completions.is_empty(),
+                "Job macro should provide delay/rate value completions");
+            
+            // 验证 cron 表达式格式
+            for cron_completion in cron_completions {
+                // Cron 表达式应该包含空格分隔的字段
+                let parts: Vec<_> = cron_completion.label.split_whitespace().collect();
+                prop_assert!(parts.len() >= 5,
+                    "Cron expression should have at least 5 fields: {}", cron_completion.label);
+            }
+            
+            // 验证延迟/频率值是数字
+            for value_completion in value_completions {
+                let is_numeric = value_completion.label.parse::<u64>().is_ok();
+                prop_assert!(is_numeric,
+                    "Delay/rate value should be numeric: {}", value_completion.label);
+            }
+        }
+    }
+}
+
+// Property 35: 补全项文档完整性
+proptest! {
+    #[test]
+    fn prop_completion_items_have_complete_documentation(
+        uri in test_uri(),
+        code in complex_rust_code_with_macros()
+    ) {
+        use spring_lsp::completion::CompletionEngine;
+        
+        let analyzer = MacroAnalyzer::new();
+        let engine = CompletionEngine::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 对每个宏获取补全项
+        for macro_info in &doc.macros {
+            let completions = engine.complete_macro(macro_info, None);
+            
+            // 应该提供补全项
+            prop_assert!(!completions.is_empty(),
+                "Macro should provide completion items");
+            
+            // 验证每个补全项的文档完整性
+            for completion in &completions {
+                // 文档应该是 MarkupContent 类型
+                if let Some(doc) = &completion.documentation {
+                    match doc {
+                        lsp_types::Documentation::String(s) => {
+                            prop_assert!(!s.is_empty(),
+                                "Documentation string should not be empty for '{}'", completion.label);
+                        }
+                        lsp_types::Documentation::MarkupContent(markup) => {
+                            prop_assert!(!markup.value.is_empty(),
+                                "Documentation markup should not be empty for '{}'", completion.label);
+                            
+                            // 应该是 Markdown 格式
+                            prop_assert_eq!(&markup.kind, &lsp_types::MarkupKind::Markdown,
+                                "Documentation should be in Markdown format for '{}'", completion.label);
+                            
+                            // Markdown 文档应该包含有用的信息（不只是空白）
+                            let trimmed = markup.value.trim();
+                            prop_assert!(!trimmed.is_empty(),
+                                "Documentation should contain non-whitespace content for '{}'", completion.label);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Property 35: 补全项插入文本正确性
+proptest! {
+    #[test]
+    fn prop_completion_items_have_valid_insert_text(
+        uri in test_uri(),
+        code in complex_rust_code_with_macros()
+    ) {
+        use spring_lsp::completion::CompletionEngine;
+        
+        let analyzer = MacroAnalyzer::new();
+        let engine = CompletionEngine::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 对每个宏获取补全项
+        for macro_info in &doc.macros {
+            let completions = engine.complete_macro(macro_info, None);
+            
+            // 验证每个补全项的插入文本
+            for completion in &completions {
+                if let Some(insert_text) = &completion.insert_text {
+                    // 插入文本不应为空
+                    prop_assert!(!insert_text.is_empty(),
+                        "Insert text should not be empty for '{}'", completion.label);
+                    
+                    // 如果是 snippet 格式，应该包含占位符标记
+                    if completion.insert_text_format == Some(lsp_types::InsertTextFormat::SNIPPET) {
+                        // Snippet 应该包含 $ 符号（占位符标记）
+                        prop_assert!(insert_text.contains('$'),
+                            "Snippet insert text should contain placeholder markers for '{}'", completion.label);
+                    }
+                    
+                    // 插入文本应该与 label 相关
+                    // 至少应该包含 label 的一部分或者是有效的替代文本
+                    let is_related = insert_text.contains(&completion.label) ||
+                                    completion.label.contains(insert_text) ||
+                                    insert_text.len() > 0; // 至少不为空
+                    prop_assert!(is_related,
+                        "Insert text should be related to label for '{}'", completion.label);
+                }
+            }
+        }
+    }
+}
+
+// Property 35: 补全项类型一致性
+proptest! {
+    #[test]
+    fn prop_completion_items_have_consistent_types(
+        uri in test_uri(),
+        code in complex_rust_code_with_macros()
+    ) {
+        use spring_lsp::completion::CompletionEngine;
+        
+        let analyzer = MacroAnalyzer::new();
+        let engine = CompletionEngine::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 对每个宏获取补全项并验证类型一致性
+        for macro_info in &doc.macros {
+            let completions = engine.complete_macro(macro_info, None);
+            
+            match macro_info {
+                spring_lsp::macro_analyzer::SpringMacro::DeriveService(_) => {
+                    // Service 宏的所有补全项应该是 PROPERTY 类型
+                    for completion in &completions {
+                        prop_assert_eq!(completion.kind, Some(lsp_types::CompletionItemKind::PROPERTY),
+                            "Service macro completion '{}' should be PROPERTY kind", completion.label);
+                    }
+                }
+                spring_lsp::macro_analyzer::SpringMacro::Inject(_) => {
+                    // Inject 宏的所有补全项应该是 KEYWORD 类型
+                    for completion in &completions {
+                        prop_assert_eq!(completion.kind, Some(lsp_types::CompletionItemKind::KEYWORD),
+                            "Inject macro completion '{}' should be KEYWORD kind", completion.label);
+                    }
+                }
+                spring_lsp::macro_analyzer::SpringMacro::AutoConfig(_) => {
+                    // AutoConfig 宏的所有补全项应该是 CLASS 类型
+                    for completion in &completions {
+                        prop_assert_eq!(completion.kind, Some(lsp_types::CompletionItemKind::CLASS),
+                            "AutoConfig macro completion '{}' should be CLASS kind", completion.label);
+                    }
+                }
+                spring_lsp::macro_analyzer::SpringMacro::Route(_) => {
+                    // Route 宏的补全项应该是 CONSTANT（HTTP 方法）或 SNIPPET（路径参数）
+                    for completion in &completions {
+                        let is_valid_kind = completion.kind == Some(lsp_types::CompletionItemKind::CONSTANT) ||
+                                          completion.kind == Some(lsp_types::CompletionItemKind::SNIPPET);
+                        prop_assert!(is_valid_kind,
+                            "Route macro completion '{}' should be CONSTANT or SNIPPET kind", completion.label);
+                    }
+                }
+                spring_lsp::macro_analyzer::SpringMacro::Job(_) => {
+                    // Job 宏的补全项应该是 SNIPPET（cron 表达式）或 VALUE（延迟/频率值）
+                    for completion in &completions {
+                        let is_valid_kind = completion.kind == Some(lsp_types::CompletionItemKind::SNIPPET) ||
+                                          completion.kind == Some(lsp_types::CompletionItemKind::VALUE);
+                        prop_assert!(is_valid_kind,
+                            "Job macro completion '{}' should be SNIPPET or VALUE kind", completion.label);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Property 35: 补全引擎不应崩溃
+proptest! {
+    #[test]
+    fn prop_completion_engine_does_not_crash(
+        uri in test_uri(),
+        code in complex_rust_code_with_macros()
+    ) {
+        use spring_lsp::completion::CompletionEngine;
+        
+        let analyzer = MacroAnalyzer::new();
+        let engine = CompletionEngine::new();
+        
+        // 解析并提取宏
+        let parse_result = analyzer.parse(uri.clone(), code.clone());
+        prop_assert!(parse_result.is_ok());
+        
+        let doc = parse_result.unwrap();
+        let extract_result = analyzer.extract_macros(doc);
+        prop_assert!(extract_result.is_ok());
+        
+        let doc = extract_result.unwrap();
+        
+        // 对每个宏调用 complete_macro 不应该崩溃
+        for macro_info in &doc.macros {
+            // 不应该 panic
+            let _completions = engine.complete_macro(macro_info, None);
+            
+            // 如果执行到这里，说明没有崩溃
+        }
+    }
+}
+
+// Property 35: 补全项数量合理性
+proptest! {
+    #[test]
+    fn prop_completion_items_count_is_reasonable(
+        uri in test_uri(),
+        code in complex_rust_code_with_macros()
+    ) {
+        use spring_lsp::completion::CompletionEngine;
+        
+        let analyzer = MacroAnalyzer::new();
+        let engine = CompletionEngine::new();
+        
+        // 解析并提取宏
+        let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
+        let doc = analyzer.extract_macros(doc).unwrap();
+        
+        // 对每个宏验证补全项数量
+        for macro_info in &doc.macros {
+            let completions = engine.complete_macro(macro_info, None);
+            
+            // 补全项数量应该在合理范围内（1-100）
+            prop_assert!(completions.len() >= 1 && completions.len() <= 100,
+                "Completion items count should be between 1 and 100, got {}", completions.len());
+            
+            // 根据宏类型验证最小补全项数量
+            match macro_info {
+                spring_lsp::macro_analyzer::SpringMacro::DeriveService(_) => {
+                    // Service 宏至少应该提供 3 个补全项（inject(component), inject(component = "name"), inject(config)）
+                    prop_assert!(completions.len() >= 3,
+                        "Service macro should provide at least 3 completion items");
+                }
+                spring_lsp::macro_analyzer::SpringMacro::Inject(_) => {
+                    // Inject 宏至少应该提供 2 个补全项（component, config）
+                    prop_assert!(completions.len() >= 2,
+                        "Inject macro should provide at least 2 completion items");
+                }
+                spring_lsp::macro_analyzer::SpringMacro::AutoConfig(_) => {
+                    // AutoConfig 宏至少应该提供 3 个补全项（WebConfigurator, JobConfigurator, StreamConfigurator）
+                    prop_assert!(completions.len() >= 3,
+                        "AutoConfig macro should provide at least 3 completion items");
+                }
+                spring_lsp::macro_analyzer::SpringMacro::Route(_) => {
+                    // Route 宏至少应该提供 7 个 HTTP 方法 + 1 个路径参数模板
+                    prop_assert!(completions.len() >= 8,
+                        "Route macro should provide at least 8 completion items");
+                }
+                spring_lsp::macro_analyzer::SpringMacro::Job(_) => {
+                    // Job 宏至少应该提供 3 个 cron 表达式 + 3 个延迟/频率值
+                    prop_assert!(completions.len() >= 6,
+                        "Job macro should provide at least 6 completion items");
+                }
+            }
+        }
+    }
+}

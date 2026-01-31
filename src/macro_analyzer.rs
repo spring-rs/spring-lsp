@@ -178,6 +178,224 @@ impl MacroAnalyzer {
         Self
     }
     
+    /// 为宏提供悬停提示
+    /// 
+    /// 当用户悬停在 spring-rs 宏上时，显示宏的详细信息和展开后的代码
+    /// 
+    /// # Arguments
+    /// 
+    /// * `macro_info` - 要显示悬停提示的宏信息
+    /// 
+    /// # Returns
+    /// 
+    /// 返回格式化的悬停提示内容（Markdown 格式）
+    pub fn hover_macro(&self, macro_info: &SpringMacro) -> String {
+        match macro_info {
+            SpringMacro::DeriveService(service) => self.hover_service_macro(service),
+            SpringMacro::Inject(inject) => self.hover_inject_macro(inject),
+            SpringMacro::AutoConfig(auto_config) => self.hover_auto_config_macro(auto_config),
+            SpringMacro::Route(route) => self.hover_route_macro(route),
+            SpringMacro::Job(job) => self.hover_job_macro(job),
+        }
+    }
+    
+    /// 为 Service 宏提供悬停提示
+    /// 
+    /// 显示 Service 宏的说明和生成的 trait 实现代码
+    fn hover_service_macro(&self, service: &ServiceMacro) -> String {
+        let mut hover = String::new();
+        
+        // 添加标题
+        hover.push_str("# Service 派生宏\n\n");
+        
+        // 添加说明
+        hover.push_str("自动为结构体实现依赖注入功能，从应用上下文中获取组件和配置。\n\n");
+        
+        // 添加结构体信息
+        hover.push_str(&format!("**结构体**: `{}`\n\n", service.struct_name));
+        
+        // 添加字段信息
+        if !service.fields.is_empty() {
+            hover.push_str("**注入字段**:\n\n");
+            for field in &service.fields {
+                hover.push_str(&format!("- `{}`: `{}`", field.name, field.type_name));
+                if let Some(inject) = &field.inject {
+                    match inject.inject_type {
+                        InjectType::Component => {
+                            if let Some(name) = &inject.component_name {
+                                hover.push_str(&format!(" - 注入组件 `\"{}\"`", name));
+                            } else {
+                                hover.push_str(" - 注入组件");
+                            }
+                        }
+                        InjectType::Config => {
+                            hover.push_str(" - 注入配置");
+                        }
+                    }
+                }
+                hover.push_str("\n");
+            }
+            hover.push_str("\n");
+        }
+        
+        // 添加展开后的代码
+        hover.push_str("**展开后的代码**:\n\n");
+        hover.push_str("```rust\n");
+        hover.push_str(&self.expand_service_macro(service));
+        hover.push_str("```\n");
+        
+        hover
+    }
+    
+    /// 为 Inject 属性提供悬停提示
+    /// 
+    /// 显示注入的组件类型和来源信息
+    fn hover_inject_macro(&self, inject: &InjectMacro) -> String {
+        let mut hover = String::new();
+        
+        // 添加标题
+        hover.push_str("# Inject 属性宏\n\n");
+        
+        // 添加说明
+        hover.push_str("标记字段从应用上下文中自动注入依赖。\n\n");
+        
+        // 添加注入类型信息
+        match inject.inject_type {
+            InjectType::Component => {
+                hover.push_str("**注入类型**: 组件 (Component)\n\n");
+                hover.push_str("从应用上下文中获取已注册的组件实例。\n\n");
+                
+                if let Some(name) = &inject.component_name {
+                    hover.push_str(&format!("**组件名称**: `\"{}\"`\n\n", name));
+                    hover.push_str("使用指定名称查找组件，适用于多实例场景（如多数据源）。\n\n");
+                    hover.push_str("**注入代码**:\n\n");
+                    hover.push_str("```rust\n");
+                    hover.push_str(&format!("app.get_component::<T>(\"{}\")\n", name));
+                    hover.push_str("```\n");
+                } else {
+                    hover.push_str("使用类型自动查找组件。\n\n");
+                    hover.push_str("**注入代码**:\n\n");
+                    hover.push_str("```rust\n");
+                    hover.push_str("app.get_component::<T>()\n");
+                    hover.push_str("```\n");
+                }
+            }
+            InjectType::Config => {
+                hover.push_str("**注入类型**: 配置 (Config)\n\n");
+                hover.push_str("从配置文件中加载配置项。\n\n");
+                hover.push_str("配置项通过 `#[config_prefix]` 指定的前缀从 `config/app.toml` 中读取。\n\n");
+                hover.push_str("**注入代码**:\n\n");
+                hover.push_str("```rust\n");
+                hover.push_str("app.get_config::<T>()\n");
+                hover.push_str("```\n");
+            }
+        }
+        
+        // 添加示例
+        hover.push_str("\n**使用示例**:\n\n");
+        hover.push_str("```rust\n");
+        hover.push_str("#[derive(Clone, Service)]\n");
+        hover.push_str("struct MyService {\n");
+        
+        match inject.inject_type {
+            InjectType::Component => {
+                if let Some(name) = &inject.component_name {
+                    hover.push_str(&format!("    #[inject(component = \"{}\")]\n", name));
+                    hover.push_str("    db: ConnectPool,\n");
+                } else {
+                    hover.push_str("    #[inject(component)]\n");
+                    hover.push_str("    db: ConnectPool,\n");
+                }
+            }
+            InjectType::Config => {
+                hover.push_str("    #[inject(config)]\n");
+                hover.push_str("    config: MyConfig,\n");
+            }
+        }
+        
+        hover.push_str("}\n");
+        hover.push_str("```\n");
+        
+        hover
+    }
+    
+    /// 为 AutoConfig 宏提供悬停提示
+    fn hover_auto_config_macro(&self, auto_config: &AutoConfigMacro) -> String {
+        let mut hover = String::new();
+        
+        hover.push_str("# AutoConfig 属性宏\n\n");
+        hover.push_str("自动注册配置器，在应用启动时配置路由、任务等。\n\n");
+        hover.push_str(&format!("**配置器类型**: `{}`\n\n", auto_config.configurator_type));
+        hover.push_str("**展开后的代码**:\n\n");
+        hover.push_str("```rust\n");
+        hover.push_str(&self.expand_auto_config_macro(auto_config));
+        hover.push_str("```\n");
+        
+        hover
+    }
+    
+    /// 为路由宏提供悬停提示
+    fn hover_route_macro(&self, route: &RouteMacro) -> String {
+        let mut hover = String::new();
+        
+        hover.push_str("# 路由宏\n\n");
+        hover.push_str("注册 HTTP 路由处理器。\n\n");
+        hover.push_str(&format!("**路由路径**: `{}`\n\n", route.path));
+        hover.push_str(&format!("**HTTP 方法**: {}\n\n", 
+            route.methods.iter()
+                .map(|m| format!("`{}`", m.as_str()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+        
+        if !route.middlewares.is_empty() {
+            hover.push_str(&format!("**中间件**: {}\n\n", 
+                route.middlewares.iter()
+                    .map(|m| format!("`{}`", m))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        
+        hover.push_str(&format!("**处理器函数**: `{}`\n\n", route.handler_name));
+        hover.push_str("**展开后的代码**:\n\n");
+        hover.push_str("```rust\n");
+        hover.push_str(&self.expand_route_macro(route));
+        hover.push_str("```\n");
+        
+        hover
+    }
+    
+    /// 为任务调度宏提供悬停提示
+    fn hover_job_macro(&self, job: &JobMacro) -> String {
+        let mut hover = String::new();
+        
+        hover.push_str("# 任务调度宏\n\n");
+        
+        match job {
+            JobMacro::Cron { expression, .. } => {
+                hover.push_str("定时任务，使用 Cron 表达式指定执行时间。\n\n");
+                hover.push_str(&format!("**Cron 表达式**: `{}`\n\n", expression));
+                hover.push_str("**格式**: `秒 分 时 日 月 星期`\n\n");
+            }
+            JobMacro::FixDelay { seconds, .. } => {
+                hover.push_str("固定延迟任务，任务完成后延迟指定秒数再次执行。\n\n");
+                hover.push_str(&format!("**延迟秒数**: `{}`\n\n", seconds));
+            }
+            JobMacro::FixRate { seconds, .. } => {
+                hover.push_str("固定频率任务，每隔指定秒数执行一次。\n\n");
+                hover.push_str(&format!("**频率秒数**: `{}`\n\n", seconds));
+            }
+        }
+        
+        hover.push_str("**展开后的代码**:\n\n");
+        hover.push_str("```rust\n");
+        hover.push_str(&self.expand_job_macro(job));
+        hover.push_str("```\n");
+        
+        hover
+    }
+    
     /// 展开宏，生成展开后的代码
     /// 
     /// 为 spring-rs 宏生成展开后的 Rust 代码，帮助开发者理解宏的实际效果
@@ -790,6 +1008,395 @@ impl MacroAnalyzer {
                 line: 0,
                 character: 0,
             },
+        }
+    }
+    
+    /// 验证宏参数的正确性
+    /// 
+    /// 检查宏参数是否符合 spring-rs 的要求，生成错误诊断和修复建议
+    /// 
+    /// # Arguments
+    /// 
+    /// * `macro_info` - 要验证的宏信息
+    /// 
+    /// # Returns
+    /// 
+    /// 返回诊断信息列表，如果没有错误则返回空列表
+    pub fn validate_macro(&self, macro_info: &SpringMacro) -> Vec<lsp_types::Diagnostic> {
+        match macro_info {
+            SpringMacro::DeriveService(service) => self.validate_service_macro(service),
+            SpringMacro::Inject(inject) => self.validate_inject_macro(inject),
+            SpringMacro::AutoConfig(auto_config) => self.validate_auto_config_macro(auto_config),
+            SpringMacro::Route(route) => self.validate_route_macro(route),
+            SpringMacro::Job(job) => self.validate_job_macro(job),
+        }
+    }
+    
+    /// 验证 Service 宏
+    /// 
+    /// 检查结构体字段的 inject 属性是否正确
+    fn validate_service_macro(&self, service: &ServiceMacro) -> Vec<lsp_types::Diagnostic> {
+        let mut diagnostics = Vec::new();
+        
+        // 检查每个字段的 inject 属性
+        for field in &service.fields {
+            if let Some(inject) = &field.inject {
+                // 验证 inject 属性
+                let inject_diagnostics = self.validate_inject_macro(inject);
+                diagnostics.extend(inject_diagnostics);
+                
+                // 检查组件名称是否为空字符串
+                if let Some(name) = &inject.component_name {
+                    if name.is_empty() {
+                        diagnostics.push(lsp_types::Diagnostic {
+                            range: inject.range,
+                            severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                            code: Some(lsp_types::NumberOrString::String("E001".to_string())),
+                            source: Some("spring-lsp".to_string()),
+                            message: format!(
+                                "字段 '{}' 的组件名称不能为空字符串",
+                                field.name
+                            ),
+                            related_information: None,
+                            tags: None,
+                            code_description: None,
+                            data: None,
+                        });
+                    }
+                }
+            }
+        }
+        
+        diagnostics
+    }
+    
+    /// 验证 Inject 宏
+    /// 
+    /// 检查注入类型和组件名称是否有效
+    fn validate_inject_macro(&self, inject: &InjectMacro) -> Vec<lsp_types::Diagnostic> {
+        let mut diagnostics = Vec::new();
+        
+        // 检查 config 类型的注入不应该有组件名称
+        if inject.inject_type == InjectType::Config && inject.component_name.is_some() {
+            diagnostics.push(lsp_types::Diagnostic {
+                range: inject.range,
+                severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                code: Some(lsp_types::NumberOrString::String("E002".to_string())),
+                source: Some("spring-lsp".to_string()),
+                message: "配置注入 (config) 不应该指定组件名称".to_string(),
+                related_information: None,
+                tags: None,
+                code_description: None,
+                data: None,
+            });
+        }
+        
+        diagnostics
+    }
+    
+    /// 验证 AutoConfig 宏
+    /// 
+    /// 检查配置器类型是否有效
+    fn validate_auto_config_macro(&self, auto_config: &AutoConfigMacro) -> Vec<lsp_types::Diagnostic> {
+        let mut diagnostics = Vec::new();
+        
+        // 检查配置器类型是否为空
+        if auto_config.configurator_type.is_empty() {
+            diagnostics.push(lsp_types::Diagnostic {
+                range: auto_config.range,
+                severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                code: Some(lsp_types::NumberOrString::String("E003".to_string())),
+                source: Some("spring-lsp".to_string()),
+                message: "AutoConfig 宏必须指定配置器类型".to_string(),
+                related_information: None,
+                tags: None,
+                code_description: None,
+                data: None,
+            });
+        }
+        
+        diagnostics
+    }
+    
+    /// 验证路由宏
+    /// 
+    /// 检查路径格式和 HTTP 方法是否有效
+    fn validate_route_macro(&self, route: &RouteMacro) -> Vec<lsp_types::Diagnostic> {
+        let mut diagnostics = Vec::new();
+        
+        // 检查路径是否为空
+        if route.path.is_empty() {
+            diagnostics.push(lsp_types::Diagnostic {
+                range: route.range,
+                severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                code: Some(lsp_types::NumberOrString::String("E004".to_string())),
+                source: Some("spring-lsp".to_string()),
+                message: "路由路径不能为空".to_string(),
+                related_information: None,
+                tags: None,
+                code_description: None,
+                data: None,
+            });
+        } else {
+            // 检查路径是否以 / 开头
+            if !route.path.starts_with('/') {
+                diagnostics.push(lsp_types::Diagnostic {
+                    range: route.range,
+                    severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                    code: Some(lsp_types::NumberOrString::String("E005".to_string())),
+                    source: Some("spring-lsp".to_string()),
+                    message: format!(
+                        "路由路径必须以 '/' 开头，当前路径: '{}'",
+                        route.path
+                    ),
+                    related_information: None,
+                    tags: None,
+                    code_description: None,
+                    data: None,
+                });
+            }
+            
+            // 检查路径参数格式
+            self.validate_path_parameters(&route.path, route.range, &mut diagnostics);
+        }
+        
+        // 检查是否至少有一个 HTTP 方法
+        if route.methods.is_empty() {
+            diagnostics.push(lsp_types::Diagnostic {
+                range: route.range,
+                severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                code: Some(lsp_types::NumberOrString::String("E006".to_string())),
+                source: Some("spring-lsp".to_string()),
+                message: "路由必须至少指定一个 HTTP 方法".to_string(),
+                related_information: None,
+                tags: None,
+                code_description: None,
+                data: None,
+            });
+        }
+        
+        // 检查处理器函数名称是否为空
+        if route.handler_name.is_empty() {
+            diagnostics.push(lsp_types::Diagnostic {
+                range: route.range,
+                severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                code: Some(lsp_types::NumberOrString::String("E007".to_string())),
+                source: Some("spring-lsp".to_string()),
+                message: "路由处理器函数名称不能为空".to_string(),
+                related_information: None,
+                tags: None,
+                code_description: None,
+                data: None,
+            });
+        }
+        
+        diagnostics
+    }
+    
+    /// 验证路径参数格式
+    /// 
+    /// 检查路径中的参数是否符合 {param} 格式
+    fn validate_path_parameters(
+        &self,
+        path: &str,
+        range: Range,
+        diagnostics: &mut Vec<lsp_types::Diagnostic>,
+    ) {
+        let mut open_braces = 0;
+        let mut param_start = None;
+        
+        for (i, ch) in path.chars().enumerate() {
+            match ch {
+                '{' => {
+                    if open_braces > 0 {
+                        // 嵌套的大括号
+                        diagnostics.push(lsp_types::Diagnostic {
+                            range,
+                            severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                            code: Some(lsp_types::NumberOrString::String("E008".to_string())),
+                            source: Some("spring-lsp".to_string()),
+                            message: format!(
+                                "路径参数不能嵌套，位置: {}",
+                                i
+                            ),
+                            related_information: None,
+                            tags: None,
+                            code_description: None,
+                            data: None,
+                        });
+                    }
+                    open_braces += 1;
+                    param_start = Some(i);
+                }
+                '}' => {
+                    if open_braces == 0 {
+                        // 没有匹配的开括号
+                        diagnostics.push(lsp_types::Diagnostic {
+                            range,
+                            severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                            code: Some(lsp_types::NumberOrString::String("E009".to_string())),
+                            source: Some("spring-lsp".to_string()),
+                            message: format!(
+                                "路径参数缺少开括号 '{{', 位置: {}",
+                                i
+                            ),
+                            related_information: None,
+                            tags: None,
+                            code_description: None,
+                            data: None,
+                        });
+                    } else {
+                        open_braces -= 1;
+                        
+                        // 检查参数名称是否为空
+                        if let Some(start) = param_start {
+                            let param_name = &path[start + 1..i];
+                            if param_name.is_empty() {
+                                diagnostics.push(lsp_types::Diagnostic {
+                                    range,
+                                    severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                                    code: Some(lsp_types::NumberOrString::String("E010".to_string())),
+                                    source: Some("spring-lsp".to_string()),
+                                    message: format!(
+                                        "路径参数名称不能为空，位置: {}",
+                                        start
+                                    ),
+                                    related_information: None,
+                                    tags: None,
+                                    code_description: None,
+                                    data: None,
+                                });
+                            } else if !param_name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                                // 检查参数名称是否只包含字母、数字和下划线
+                                diagnostics.push(lsp_types::Diagnostic {
+                                    range,
+                                    severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                                    code: Some(lsp_types::NumberOrString::String("E011".to_string())),
+                                    source: Some("spring-lsp".to_string()),
+                                    message: format!(
+                                        "路径参数名称只能包含字母、数字和下划线，当前参数: '{}'",
+                                        param_name
+                                    ),
+                                    related_information: None,
+                                    tags: None,
+                                    code_description: None,
+                                    data: None,
+                                });
+                            }
+                        }
+                        param_start = None;
+                    }
+                }
+                _ => {}
+            }
+        }
+        
+        // 检查是否有未闭合的括号
+        if open_braces > 0 {
+            diagnostics.push(lsp_types::Diagnostic {
+                range,
+                severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                code: Some(lsp_types::NumberOrString::String("E012".to_string())),
+                source: Some("spring-lsp".to_string()),
+                message: "路径参数缺少闭括号 '}'".to_string(),
+                related_information: None,
+                tags: None,
+                code_description: None,
+                data: None,
+            });
+        }
+    }
+    
+    /// 验证任务调度宏
+    /// 
+    /// 检查 cron 表达式、延迟和频率值是否有效
+    fn validate_job_macro(&self, job: &JobMacro) -> Vec<lsp_types::Diagnostic> {
+        let mut diagnostics = Vec::new();
+        
+        match job {
+            JobMacro::Cron { expression, range } => {
+                // 检查 cron 表达式是否为空
+                if expression.is_empty() {
+                    diagnostics.push(lsp_types::Diagnostic {
+                        range: *range,
+                        severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                        code: Some(lsp_types::NumberOrString::String("E013".to_string())),
+                        source: Some("spring-lsp".to_string()),
+                        message: "Cron 表达式不能为空".to_string(),
+                        related_information: None,
+                        tags: None,
+                        code_description: None,
+                        data: None,
+                    });
+                } else {
+                    // 验证 cron 表达式格式（基本验证）
+                    self.validate_cron_expression(expression, *range, &mut diagnostics);
+                }
+            }
+            JobMacro::FixDelay { seconds, range } => {
+                // 检查延迟秒数是否为 0
+                if *seconds == 0 {
+                    diagnostics.push(lsp_types::Diagnostic {
+                        range: *range,
+                        severity: Some(lsp_types::DiagnosticSeverity::WARNING),
+                        code: Some(lsp_types::NumberOrString::String("W001".to_string())),
+                        source: Some("spring-lsp".to_string()),
+                        message: "延迟秒数为 0 可能不是预期的行为".to_string(),
+                        related_information: None,
+                        tags: None,
+                        code_description: None,
+                        data: None,
+                    });
+                }
+            }
+            JobMacro::FixRate { seconds, range } => {
+                // 检查频率秒数是否为 0
+                if *seconds == 0 {
+                    diagnostics.push(lsp_types::Diagnostic {
+                        range: *range,
+                        severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                        code: Some(lsp_types::NumberOrString::String("E014".to_string())),
+                        source: Some("spring-lsp".to_string()),
+                        message: "频率秒数不能为 0".to_string(),
+                        related_information: None,
+                        tags: None,
+                        code_description: None,
+                        data: None,
+                    });
+                }
+            }
+        }
+        
+        diagnostics
+    }
+    
+    /// 验证 cron 表达式格式
+    /// 
+    /// 基本验证 cron 表达式是否符合 "秒 分 时 日 月 星期" 格式
+    fn validate_cron_expression(
+        &self,
+        expression: &str,
+        range: Range,
+        diagnostics: &mut Vec<lsp_types::Diagnostic>,
+    ) {
+        let parts: Vec<&str> = expression.split_whitespace().collect();
+        
+        // Cron 表达式应该有 6 个部分：秒 分 时 日 月 星期
+        if parts.len() != 6 {
+            diagnostics.push(lsp_types::Diagnostic {
+                range,
+                severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                code: Some(lsp_types::NumberOrString::String("E015".to_string())),
+                source: Some("spring-lsp".to_string()),
+                message: format!(
+                    "Cron 表达式应该包含 6 个部分（秒 分 时 日 月 星期），当前有 {} 个部分",
+                    parts.len()
+                ),
+                related_information: None,
+                tags: None,
+                code_description: None,
+                data: None,
+            });
         }
     }
 }

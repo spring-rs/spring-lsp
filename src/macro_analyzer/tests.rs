@@ -1341,3 +1341,1082 @@ fn test_inject_with_component_name() {
         _ => panic!("Expected DeriveService macro"),
     }
 }
+
+// ============ 宏悬停提示功能测试 ============
+
+#[test]
+fn test_hover_service_macro() {
+    let analyzer = MacroAnalyzer::new();
+    let service = ServiceMacro {
+        struct_name: "UserService".to_string(),
+        fields: vec![
+            Field {
+                name: "db".to_string(),
+                type_name: "ConnectPool".to_string(),
+                inject: Some(InjectMacro {
+                    inject_type: InjectType::Component,
+                    component_name: None,
+                    range: test_range(),
+                }),
+            },
+            Field {
+                name: "config".to_string(),
+                type_name: "UserConfig".to_string(),
+                inject: Some(InjectMacro {
+                    inject_type: InjectType::Config,
+                    component_name: None,
+                    range: test_range(),
+                }),
+            },
+        ],
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::DeriveService(service));
+    
+    // 验证悬停提示包含关键信息
+    assert!(hover.contains("# Service 派生宏"));
+    assert!(hover.contains("UserService"));
+    assert!(hover.contains("注入字段"));
+    assert!(hover.contains("db"));
+    assert!(hover.contains("ConnectPool"));
+    assert!(hover.contains("config"));
+    assert!(hover.contains("UserConfig"));
+    assert!(hover.contains("展开后的代码"));
+    assert!(hover.contains("```rust"));
+    assert!(hover.contains("impl UserService"));
+}
+
+#[test]
+fn test_hover_service_macro_with_named_component() {
+    let analyzer = MacroAnalyzer::new();
+    let service = ServiceMacro {
+        struct_name: "MultiDbService".to_string(),
+        fields: vec![
+            Field {
+                name: "primary_db".to_string(),
+                type_name: "ConnectPool".to_string(),
+                inject: Some(InjectMacro {
+                    inject_type: InjectType::Component,
+                    component_name: Some("primary".to_string()),
+                    range: test_range(),
+                }),
+            },
+        ],
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::DeriveService(service));
+    
+    // 验证悬停提示包含组件名称
+    assert!(hover.contains("MultiDbService"));
+    assert!(hover.contains("primary_db"));
+    assert!(hover.contains("注入组件 `\"primary\"`"));
+}
+
+#[test]
+fn test_hover_service_macro_empty_fields() {
+    let analyzer = MacroAnalyzer::new();
+    let service = ServiceMacro {
+        struct_name: "EmptyService".to_string(),
+        fields: vec![],
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::DeriveService(service));
+    
+    // 验证空服务也能生成悬停提示
+    assert!(hover.contains("# Service 派生宏"));
+    assert!(hover.contains("EmptyService"));
+    assert!(hover.contains("展开后的代码"));
+}
+
+#[test]
+fn test_hover_inject_macro_component() {
+    let analyzer = MacroAnalyzer::new();
+    let inject = InjectMacro {
+        inject_type: InjectType::Component,
+        component_name: None,
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::Inject(inject));
+    
+    // 验证悬停提示包含注入信息
+    assert!(hover.contains("# Inject 属性宏"));
+    assert!(hover.contains("注入类型"));
+    assert!(hover.contains("组件 (Component)"));
+    assert!(hover.contains("app.get_component::<T>()"));
+    assert!(hover.contains("使用示例"));
+    assert!(hover.contains("```rust"));
+}
+
+#[test]
+fn test_hover_inject_macro_component_with_name() {
+    let analyzer = MacroAnalyzer::new();
+    let inject = InjectMacro {
+        inject_type: InjectType::Component,
+        component_name: Some("my_component".to_string()),
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::Inject(inject));
+    
+    // 验证悬停提示包含组件名称
+    assert!(hover.contains("组件名称"));
+    assert!(hover.contains("my_component"));
+    assert!(hover.contains("app.get_component::<T>(\"my_component\")"));
+    assert!(hover.contains("多实例场景"));
+}
+
+#[test]
+fn test_hover_inject_macro_config() {
+    let analyzer = MacroAnalyzer::new();
+    let inject = InjectMacro {
+        inject_type: InjectType::Config,
+        component_name: None,
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::Inject(inject));
+    
+    // 验证悬停提示包含配置注入信息
+    assert!(hover.contains("# Inject 属性宏"));
+    assert!(hover.contains("配置 (Config)"));
+    assert!(hover.contains("app.get_config::<T>()"));
+    assert!(hover.contains("config/app.toml"));
+    assert!(hover.contains("#[config_prefix]"));
+}
+
+#[test]
+fn test_hover_auto_config_macro() {
+    let analyzer = MacroAnalyzer::new();
+    let auto_config = AutoConfigMacro {
+        configurator_type: "WebConfigurator".to_string(),
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::AutoConfig(auto_config));
+    
+    // 验证悬停提示包含配置器信息
+    assert!(hover.contains("# AutoConfig 属性宏"));
+    assert!(hover.contains("WebConfigurator"));
+    assert!(hover.contains("展开后的代码"));
+}
+
+#[test]
+fn test_hover_route_macro() {
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "/users/{id}".to_string(),
+        methods: vec![HttpMethod::Get],
+        middlewares: vec![],
+        handler_name: "get_user".to_string(),
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::Route(route));
+    
+    // 验证悬停提示包含路由信息
+    assert!(hover.contains("# 路由宏"));
+    assert!(hover.contains("路由路径"));
+    assert!(hover.contains("/users/{id}"));
+    assert!(hover.contains("HTTP 方法"));
+    assert!(hover.contains("`GET`"));
+    assert!(hover.contains("处理器函数"));
+    assert!(hover.contains("get_user"));
+}
+
+#[test]
+fn test_hover_route_macro_multiple_methods() {
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "/api/resource".to_string(),
+        methods: vec![HttpMethod::Get, HttpMethod::Post],
+        middlewares: vec![],
+        handler_name: "handle_resource".to_string(),
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::Route(route));
+    
+    // 验证悬停提示包含多个方法
+    assert!(hover.contains("`GET`"));
+    assert!(hover.contains("`POST`"));
+}
+
+#[test]
+fn test_hover_route_macro_with_middlewares() {
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "/protected".to_string(),
+        methods: vec![HttpMethod::Get],
+        middlewares: vec!["AuthMiddleware".to_string(), "LogMiddleware".to_string()],
+        handler_name: "protected_handler".to_string(),
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::Route(route));
+    
+    // 验证悬停提示包含中间件信息
+    assert!(hover.contains("中间件"));
+    assert!(hover.contains("AuthMiddleware"));
+    assert!(hover.contains("LogMiddleware"));
+}
+
+#[test]
+fn test_hover_cron_job_macro() {
+    let analyzer = MacroAnalyzer::new();
+    let job = JobMacro::Cron {
+        expression: "0 0 * * * *".to_string(),
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::Job(job));
+    
+    // 验证悬停提示包含 Cron 任务信息
+    assert!(hover.contains("# 任务调度宏"));
+    assert!(hover.contains("定时任务"));
+    assert!(hover.contains("Cron 表达式"));
+    assert!(hover.contains("0 0 * * * *"));
+    assert!(hover.contains("秒 分 时 日 月 星期"));
+}
+
+#[test]
+fn test_hover_fix_delay_job_macro() {
+    let analyzer = MacroAnalyzer::new();
+    let job = JobMacro::FixDelay {
+        seconds: 5,
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::Job(job));
+    
+    // 验证悬停提示包含 FixDelay 任务信息
+    assert!(hover.contains("# 任务调度宏"));
+    assert!(hover.contains("固定延迟任务"));
+    assert!(hover.contains("延迟秒数"));
+    assert!(hover.contains("5"));
+}
+
+#[test]
+fn test_hover_fix_rate_job_macro() {
+    let analyzer = MacroAnalyzer::new();
+    let job = JobMacro::FixRate {
+        seconds: 10,
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::Job(job));
+    
+    // 验证悬停提示包含 FixRate 任务信息
+    assert!(hover.contains("# 任务调度宏"));
+    assert!(hover.contains("固定频率任务"));
+    assert!(hover.contains("频率秒数"));
+    assert!(hover.contains("10"));
+}
+
+#[test]
+fn test_hover_all_macro_types() {
+    let analyzer = MacroAnalyzer::new();
+    
+    // 测试所有宏类型都能生成悬停提示
+    let macros = vec![
+        SpringMacro::DeriveService(ServiceMacro {
+            struct_name: "TestService".to_string(),
+            fields: vec![],
+            range: test_range(),
+        }),
+        SpringMacro::Inject(InjectMacro {
+            inject_type: InjectType::Component,
+            component_name: None,
+            range: test_range(),
+        }),
+        SpringMacro::AutoConfig(AutoConfigMacro {
+            configurator_type: "TestConfigurator".to_string(),
+            range: test_range(),
+        }),
+        SpringMacro::Route(RouteMacro {
+            path: "/test".to_string(),
+            methods: vec![HttpMethod::Get],
+            middlewares: vec![],
+            handler_name: "test_handler".to_string(),
+            range: test_range(),
+        }),
+        SpringMacro::Job(JobMacro::Cron {
+            expression: "0 0 * * * *".to_string(),
+            range: test_range(),
+        }),
+    ];
+    
+    for macro_item in macros {
+        let hover = analyzer.hover_macro(&macro_item);
+        
+        // 所有宏都应该能生成非空的悬停提示
+        assert!(!hover.is_empty());
+        
+        // 所有悬停提示都应该包含标题
+        assert!(hover.contains("#"));
+        
+        // 所有悬停提示都应该包含代码块
+        assert!(hover.contains("```"));
+    }
+}
+
+#[test]
+fn test_hover_markdown_format() {
+    let analyzer = MacroAnalyzer::new();
+    let service = ServiceMacro {
+        struct_name: "MyService".to_string(),
+        fields: vec![
+            Field {
+                name: "db".to_string(),
+                type_name: "ConnectPool".to_string(),
+                inject: Some(InjectMacro {
+                    inject_type: InjectType::Component,
+                    component_name: None,
+                    range: test_range(),
+                }),
+            },
+        ],
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::DeriveService(service));
+    
+    // 验证 Markdown 格式
+    assert!(hover.contains("# ")); // 标题
+    assert!(hover.contains("**")); // 粗体
+    assert!(hover.contains("`")); // 代码
+    assert!(hover.contains("```rust")); // 代码块
+    assert!(hover.contains("- ")); // 列表
+}
+
+#[test]
+fn test_hover_comprehensive_example() {
+    // 综合测试：验证完整的悬停提示功能
+    let analyzer = MacroAnalyzer::new();
+    let uri = Url::parse("file:///test.rs").unwrap();
+    
+    let content = r#"
+        #[derive(Clone, Service)]
+        struct UserService {
+            #[inject(component = "primary")]
+            db: ConnectPool,
+            
+            #[inject(config)]
+            config: UserConfig,
+        }
+        
+        #[get("/users/{id}")]
+        async fn get_user(id: i64) -> Result<Json<User>> {
+            Ok(Json(User::default()))
+        }
+    "#.to_string();
+    
+    // 解析并提取宏
+    let doc = analyzer.parse(uri, content).unwrap();
+    let result = analyzer.extract_macros(doc).unwrap();
+    
+    // 为所有宏生成悬停提示
+    for macro_item in &result.macros {
+        let hover = analyzer.hover_macro(macro_item);
+        
+        // 验证悬停提示不为空
+        assert!(!hover.is_empty());
+        
+        // 验证悬停提示包含标题
+        assert!(hover.starts_with("#"));
+        
+        // 验证悬停提示包含代码块
+        assert!(hover.contains("```rust"));
+        
+        // 根据宏类型验证特定内容
+        match macro_item {
+            SpringMacro::DeriveService(service) => {
+                assert!(hover.contains(&service.struct_name));
+                assert!(hover.contains("注入字段"));
+            }
+            SpringMacro::Route(route) => {
+                assert!(hover.contains(&route.path));
+                assert!(hover.contains("HTTP 方法"));
+            }
+            _ => {}
+        }
+    }
+}
+
+#[test]
+fn test_hover_readability() {
+    // 测试悬停提示的可读性
+    let analyzer = MacroAnalyzer::new();
+    
+    let inject = InjectMacro {
+        inject_type: InjectType::Component,
+        component_name: Some("my_db".to_string()),
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::Inject(inject));
+    
+    // 验证悬停提示包含清晰的说明
+    assert!(hover.contains("标记字段从应用上下文中自动注入依赖"));
+    
+    // 验证悬停提示包含使用示例
+    assert!(hover.contains("使用示例"));
+    
+    // 验证悬停提示格式良好
+    assert!(hover.contains("\n\n")); // 段落分隔
+    
+    // 验证悬停提示包含有意义的标签
+    assert!(hover.contains("**注入类型**"));
+    assert!(hover.contains("**组件名称**"));
+    assert!(hover.contains("**注入代码**"));
+}
+
+#[test]
+fn test_hover_service_with_mixed_fields() {
+    // 测试包含不同类型注入的服务
+    let analyzer = MacroAnalyzer::new();
+    let service = ServiceMacro {
+        struct_name: "MixedService".to_string(),
+        fields: vec![
+            Field {
+                name: "db".to_string(),
+                type_name: "ConnectPool".to_string(),
+                inject: Some(InjectMacro {
+                    inject_type: InjectType::Component,
+                    component_name: None,
+                    range: test_range(),
+                }),
+            },
+            Field {
+                name: "cache".to_string(),
+                type_name: "RedisPool".to_string(),
+                inject: Some(InjectMacro {
+                    inject_type: InjectType::Component,
+                    component_name: Some("redis".to_string()),
+                    range: test_range(),
+                }),
+            },
+            Field {
+                name: "config".to_string(),
+                type_name: "AppConfig".to_string(),
+                inject: Some(InjectMacro {
+                    inject_type: InjectType::Config,
+                    component_name: None,
+                    range: test_range(),
+                }),
+            },
+            Field {
+                name: "name".to_string(),
+                type_name: "String".to_string(),
+                inject: None,
+            },
+        ],
+        range: test_range(),
+    };
+    
+    let hover = analyzer.hover_macro(&SpringMacro::DeriveService(service));
+    
+    // 验证所有字段都在悬停提示中
+    assert!(hover.contains("db"));
+    assert!(hover.contains("cache"));
+    assert!(hover.contains("config"));
+    assert!(hover.contains("name"));
+    
+    // 验证不同的注入类型都被正确标识
+    assert!(hover.contains("注入组件"));
+    assert!(hover.contains("注入组件 `\"redis\"`"));
+    assert!(hover.contains("注入配置"));
+}
+
+// ============ 宏参数验证功能测试 ============
+
+#[test]
+fn test_validate_service_macro_valid() {
+    let analyzer = MacroAnalyzer::new();
+    let service = ServiceMacro {
+        struct_name: "UserService".to_string(),
+        fields: vec![
+            Field {
+                name: "db".to_string(),
+                type_name: "ConnectPool".to_string(),
+                inject: Some(InjectMacro {
+                    inject_type: InjectType::Component,
+                    component_name: None,
+                    range: test_range(),
+                }),
+            },
+        ],
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::DeriveService(service));
+    
+    // 有效的 Service 宏不应该产生诊断
+    assert_eq!(diagnostics.len(), 0);
+}
+
+#[test]
+fn test_validate_service_macro_empty_component_name() {
+    let analyzer = MacroAnalyzer::new();
+    let service = ServiceMacro {
+        struct_name: "UserService".to_string(),
+        fields: vec![
+            Field {
+                name: "db".to_string(),
+                type_name: "ConnectPool".to_string(),
+                inject: Some(InjectMacro {
+                    inject_type: InjectType::Component,
+                    component_name: Some("".to_string()), // 空字符串
+                    range: test_range(),
+                }),
+            },
+        ],
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::DeriveService(service));
+    
+    // 应该产生错误诊断
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].severity, Some(lsp_types::DiagnosticSeverity::ERROR));
+    assert!(diagnostics[0].message.contains("组件名称不能为空字符串"));
+}
+
+#[test]
+fn test_validate_inject_macro_config_with_name() {
+    let analyzer = MacroAnalyzer::new();
+    let inject = InjectMacro {
+        inject_type: InjectType::Config,
+        component_name: Some("my_config".to_string()), // Config 不应该有组件名称
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Inject(inject));
+    
+    // 应该产生错误诊断
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].severity, Some(lsp_types::DiagnosticSeverity::ERROR));
+    assert!(diagnostics[0].message.contains("配置注入 (config) 不应该指定组件名称"));
+}
+
+#[test]
+fn test_validate_inject_macro_component_valid() {
+    let analyzer = MacroAnalyzer::new();
+    let inject = InjectMacro {
+        inject_type: InjectType::Component,
+        component_name: Some("my_component".to_string()),
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Inject(inject));
+    
+    // 有效的 Component 注入不应该产生诊断
+    assert_eq!(diagnostics.len(), 0);
+}
+
+#[test]
+fn test_validate_inject_macro_config_valid() {
+    let analyzer = MacroAnalyzer::new();
+    let inject = InjectMacro {
+        inject_type: InjectType::Config,
+        component_name: None,
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Inject(inject));
+    
+    // 有效的 Config 注入不应该产生诊断
+    assert_eq!(diagnostics.len(), 0);
+}
+
+#[test]
+fn test_validate_auto_config_macro_empty_type() {
+    let analyzer = MacroAnalyzer::new();
+    let auto_config = AutoConfigMacro {
+        configurator_type: "".to_string(), // 空字符串
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::AutoConfig(auto_config));
+    
+    // 应该产生错误诊断
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].severity, Some(lsp_types::DiagnosticSeverity::ERROR));
+    assert!(diagnostics[0].message.contains("必须指定配置器类型"));
+}
+
+#[test]
+fn test_validate_auto_config_macro_valid() {
+    let analyzer = MacroAnalyzer::new();
+    let auto_config = AutoConfigMacro {
+        configurator_type: "WebConfigurator".to_string(),
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::AutoConfig(auto_config));
+    
+    // 有效的 AutoConfig 宏不应该产生诊断
+    assert_eq!(diagnostics.len(), 0);
+}
+
+#[test]
+fn test_validate_route_macro_empty_path() {
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "".to_string(), // 空路径
+        methods: vec![HttpMethod::Get],
+        middlewares: vec![],
+        handler_name: "handler".to_string(),
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
+    
+    // 应该产生错误诊断
+    assert!(diagnostics.len() > 0);
+    assert!(diagnostics.iter().any(|d| d.message.contains("路由路径不能为空")));
+}
+
+#[test]
+fn test_validate_route_macro_path_without_slash() {
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "users".to_string(), // 不以 / 开头
+        methods: vec![HttpMethod::Get],
+        middlewares: vec![],
+        handler_name: "handler".to_string(),
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
+    
+    // 应该产生错误诊断
+    assert!(diagnostics.len() > 0);
+    assert!(diagnostics.iter().any(|d| d.message.contains("必须以 '/' 开头")));
+}
+
+#[test]
+fn test_validate_route_macro_no_methods() {
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "/users".to_string(),
+        methods: vec![], // 没有方法
+        middlewares: vec![],
+        handler_name: "handler".to_string(),
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
+    
+    // 应该产生错误诊断
+    assert!(diagnostics.len() > 0);
+    assert!(diagnostics.iter().any(|d| d.message.contains("至少指定一个 HTTP 方法")));
+}
+
+#[test]
+fn test_validate_route_macro_empty_handler_name() {
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "/users".to_string(),
+        methods: vec![HttpMethod::Get],
+        middlewares: vec![],
+        handler_name: "".to_string(), // 空处理器名称
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
+    
+    // 应该产生错误诊断
+    assert!(diagnostics.len() > 0);
+    assert!(diagnostics.iter().any(|d| d.message.contains("处理器函数名称不能为空")));
+}
+
+#[test]
+fn test_validate_route_macro_valid() {
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "/users/{id}".to_string(),
+        methods: vec![HttpMethod::Get],
+        middlewares: vec![],
+        handler_name: "get_user".to_string(),
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
+    
+    // 有效的路由宏不应该产生诊断
+    assert_eq!(diagnostics.len(), 0);
+}
+
+#[test]
+fn test_validate_route_macro_nested_braces() {
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "/users/{{id}}".to_string(), // 嵌套的大括号
+        methods: vec![HttpMethod::Get],
+        middlewares: vec![],
+        handler_name: "handler".to_string(),
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
+    
+    // 应该产生错误诊断
+    assert!(diagnostics.len() > 0);
+    assert!(diagnostics.iter().any(|d| d.message.contains("不能嵌套")));
+}
+
+#[test]
+fn test_validate_route_macro_unmatched_closing_brace() {
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "/users/id}".to_string(), // 没有匹配的开括号
+        methods: vec![HttpMethod::Get],
+        middlewares: vec![],
+        handler_name: "handler".to_string(),
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
+    
+    // 应该产生错误诊断
+    assert!(diagnostics.len() > 0);
+    assert!(diagnostics.iter().any(|d| d.message.contains("缺少开括号")));
+}
+
+#[test]
+fn test_validate_route_macro_unclosed_brace() {
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "/users/{id".to_string(), // 没有闭括号
+        methods: vec![HttpMethod::Get],
+        middlewares: vec![],
+        handler_name: "handler".to_string(),
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
+    
+    // 应该产生错误诊断
+    assert!(diagnostics.len() > 0);
+    assert!(diagnostics.iter().any(|d| d.message.contains("缺少闭括号")));
+}
+
+#[test]
+fn test_validate_route_macro_empty_param_name() {
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "/users/{}".to_string(), // 空参数名称
+        methods: vec![HttpMethod::Get],
+        middlewares: vec![],
+        handler_name: "handler".to_string(),
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
+    
+    // 应该产生错误诊断
+    assert!(diagnostics.len() > 0);
+    assert!(diagnostics.iter().any(|d| d.message.contains("参数名称不能为空")));
+}
+
+#[test]
+fn test_validate_route_macro_invalid_param_name() {
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "/users/{id-name}".to_string(), // 包含非法字符
+        methods: vec![HttpMethod::Get],
+        middlewares: vec![],
+        handler_name: "handler".to_string(),
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
+    
+    // 应该产生错误诊断
+    assert!(diagnostics.len() > 0);
+    assert!(diagnostics.iter().any(|d| d.message.contains("只能包含字母、数字和下划线")));
+}
+
+#[test]
+fn test_validate_route_macro_valid_param_names() {
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "/users/{user_id}/posts/{post_id}".to_string(),
+        methods: vec![HttpMethod::Get],
+        middlewares: vec![],
+        handler_name: "handler".to_string(),
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
+    
+    // 有效的参数名称不应该产生诊断
+    assert_eq!(diagnostics.len(), 0);
+}
+
+#[test]
+fn test_validate_cron_job_empty_expression() {
+    let analyzer = MacroAnalyzer::new();
+    let job = JobMacro::Cron {
+        expression: "".to_string(), // 空表达式
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Job(job));
+    
+    // 应该产生错误诊断
+    assert!(diagnostics.len() > 0);
+    assert!(diagnostics.iter().any(|d| d.message.contains("Cron 表达式不能为空")));
+}
+
+#[test]
+fn test_validate_cron_job_invalid_parts() {
+    let analyzer = MacroAnalyzer::new();
+    let job = JobMacro::Cron {
+        expression: "0 0 *".to_string(), // 只有 3 个部分，应该有 6 个
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Job(job));
+    
+    // 应该产生错误诊断
+    assert!(diagnostics.len() > 0);
+    assert!(diagnostics.iter().any(|d| d.message.contains("应该包含 6 个部分")));
+}
+
+#[test]
+fn test_validate_cron_job_valid() {
+    let analyzer = MacroAnalyzer::new();
+    let job = JobMacro::Cron {
+        expression: "0 0 * * * *".to_string(), // 有效的 cron 表达式
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Job(job));
+    
+    // 有效的 cron 表达式不应该产生诊断
+    assert_eq!(diagnostics.len(), 0);
+}
+
+#[test]
+fn test_validate_fix_delay_job_zero_seconds() {
+    let analyzer = MacroAnalyzer::new();
+    let job = JobMacro::FixDelay {
+        seconds: 0, // 0 秒延迟
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Job(job));
+    
+    // 应该产生警告诊断
+    assert!(diagnostics.len() > 0);
+    assert_eq!(diagnostics[0].severity, Some(lsp_types::DiagnosticSeverity::WARNING));
+    assert!(diagnostics[0].message.contains("延迟秒数为 0"));
+}
+
+#[test]
+fn test_validate_fix_delay_job_valid() {
+    let analyzer = MacroAnalyzer::new();
+    let job = JobMacro::FixDelay {
+        seconds: 5,
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Job(job));
+    
+    // 有效的 FixDelay 任务不应该产生诊断
+    assert_eq!(diagnostics.len(), 0);
+}
+
+#[test]
+fn test_validate_fix_rate_job_zero_seconds() {
+    let analyzer = MacroAnalyzer::new();
+    let job = JobMacro::FixRate {
+        seconds: 0, // 0 秒频率
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Job(job));
+    
+    // 应该产生错误诊断
+    assert!(diagnostics.len() > 0);
+    assert_eq!(diagnostics[0].severity, Some(lsp_types::DiagnosticSeverity::ERROR));
+    assert!(diagnostics[0].message.contains("频率秒数不能为 0"));
+}
+
+#[test]
+fn test_validate_fix_rate_job_valid() {
+    let analyzer = MacroAnalyzer::new();
+    let job = JobMacro::FixRate {
+        seconds: 10,
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Job(job));
+    
+    // 有效的 FixRate 任务不应该产生诊断
+    assert_eq!(diagnostics.len(), 0);
+}
+
+#[test]
+fn test_validate_all_macro_types() {
+    let analyzer = MacroAnalyzer::new();
+    
+    // 测试所有宏类型的验证功能
+    let macros = vec![
+        SpringMacro::DeriveService(ServiceMacro {
+            struct_name: "TestService".to_string(),
+            fields: vec![],
+            range: test_range(),
+        }),
+        SpringMacro::Inject(InjectMacro {
+            inject_type: InjectType::Component,
+            component_name: None,
+            range: test_range(),
+        }),
+        SpringMacro::AutoConfig(AutoConfigMacro {
+            configurator_type: "TestConfigurator".to_string(),
+            range: test_range(),
+        }),
+        SpringMacro::Route(RouteMacro {
+            path: "/test".to_string(),
+            methods: vec![HttpMethod::Get],
+            middlewares: vec![],
+            handler_name: "test_handler".to_string(),
+            range: test_range(),
+        }),
+        SpringMacro::Job(JobMacro::Cron {
+            expression: "0 0 * * * *".to_string(),
+            range: test_range(),
+        }),
+    ];
+    
+    for macro_item in macros {
+        let diagnostics = analyzer.validate_macro(&macro_item);
+        // 所有有效的宏都不应该产生诊断
+        assert_eq!(diagnostics.len(), 0);
+    }
+}
+
+#[test]
+fn test_validate_comprehensive_example() {
+    // 综合测试：验证完整的宏验证功能
+    let analyzer = MacroAnalyzer::new();
+    let uri = Url::parse("file:///test.rs").unwrap();
+    
+    let content = r#"
+        #[derive(Clone, Service)]
+        struct UserService {
+            #[inject(component = "primary")]
+            db: ConnectPool,
+            
+            #[inject(config)]
+            config: UserConfig,
+        }
+        
+        #[get("/users/{id}")]
+        async fn get_user(id: i64) -> Result<Json<User>> {
+            Ok(Json(User::default()))
+        }
+        
+        #[auto_config(WebConfigurator)]
+        #[tokio::main]
+        async fn main() {
+            App::new().run().await
+        }
+        
+        #[cron("0 0 * * * *")]
+        async fn hourly_cleanup() {
+            println!("Cleanup");
+        }
+    "#.to_string();
+    
+    // 解析并提取宏
+    let doc = analyzer.parse(uri, content).unwrap();
+    let result = analyzer.extract_macros(doc).unwrap();
+    
+    // 验证所有宏
+    for macro_item in &result.macros {
+        let diagnostics = analyzer.validate_macro(macro_item);
+        
+        // 所有有效的宏都不应该产生诊断
+        assert_eq!(diagnostics.len(), 0);
+    }
+}
+
+#[test]
+fn test_validate_multiple_errors() {
+    // 测试一个宏可以产生多个错误
+    let analyzer = MacroAnalyzer::new();
+    let route = RouteMacro {
+        path: "users".to_string(), // 不以 / 开头
+        methods: vec![], // 没有方法
+        middlewares: vec![],
+        handler_name: "".to_string(), // 空处理器名称
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
+    
+    // 应该产生多个错误诊断
+    assert!(diagnostics.len() >= 3);
+}
+
+#[test]
+fn test_validate_diagnostic_structure() {
+    // 测试诊断信息的结构
+    let analyzer = MacroAnalyzer::new();
+    let auto_config = AutoConfigMacro {
+        configurator_type: "".to_string(),
+        range: test_range(),
+    };
+    
+    let diagnostics = analyzer.validate_macro(&SpringMacro::AutoConfig(auto_config));
+    
+    assert_eq!(diagnostics.len(), 1);
+    
+    let diagnostic = &diagnostics[0];
+    
+    // 验证诊断信息的各个字段
+    assert_eq!(diagnostic.severity, Some(lsp_types::DiagnosticSeverity::ERROR));
+    assert!(diagnostic.code.is_some());
+    assert_eq!(diagnostic.source, Some("spring-lsp".to_string()));
+    assert!(!diagnostic.message.is_empty());
+}
+
+#[test]
+fn test_validate_error_codes() {
+    // 测试不同错误有不同的错误代码
+    let analyzer = MacroAnalyzer::new();
+    
+    let route1 = RouteMacro {
+        path: "".to_string(),
+        methods: vec![HttpMethod::Get],
+        middlewares: vec![],
+        handler_name: "handler".to_string(),
+        range: test_range(),
+    };
+    
+    let route2 = RouteMacro {
+        path: "users".to_string(),
+        methods: vec![HttpMethod::Get],
+        middlewares: vec![],
+        handler_name: "handler".to_string(),
+        range: test_range(),
+    };
+    
+    let diagnostics1 = analyzer.validate_macro(&SpringMacro::Route(route1));
+    let diagnostics2 = analyzer.validate_macro(&SpringMacro::Route(route2));
+    
+    // 不同的错误应该有不同的错误代码
+    assert!(diagnostics1.len() > 0);
+    assert!(diagnostics2.len() > 0);
+    
+    if let (Some(code1), Some(code2)) = (&diagnostics1[0].code, &diagnostics2[0].code) {
+        assert_ne!(code1, code2);
+    }
+}
