@@ -43,6 +43,7 @@
 //! 本实现遵循 LSP 3.17 规范。
 
 use crate::document::DocumentManager;
+use crate::error::{ErrorHandler, RecoveryAction};
 use crate::{Error, Result};
 use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
@@ -73,6 +74,8 @@ pub struct LspServer {
     pub state: ServerState,
     /// 文档管理器
     pub document_manager: Arc<DocumentManager>,
+    /// 错误处理器
+    error_handler: ErrorHandler,
 }
 
 impl LspServer {
@@ -85,10 +88,16 @@ impl LspServer {
         // 通过标准输入输出创建 LSP 连接
         let (connection, _io_threads) = Connection::stdio();
 
+        // 从环境变量读取是否启用详细日志
+        let verbose = std::env::var("SPRING_LSP_VERBOSE")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(false);
+
         Ok(Self {
             connection,
             state: ServerState::Uninitialized,
             document_manager: Arc::new(DocumentManager::new()),
+            error_handler: ErrorHandler::new(verbose),
         })
     }
 
@@ -148,15 +157,52 @@ impl LspServer {
             let msg = match self.connection.receiver.recv() {
                 Ok(msg) => msg,
                 Err(e) => {
-                    tracing::error!("Error receiving message: {}", e);
-                    break;
+                    let error = Error::MessageReceive(e.to_string());
+                    let result = self.error_handler.handle(&error);
+
+                    match result.action {
+                        RecoveryAction::RetryConnection => {
+                            tracing::info!("Attempting to recover connection...");
+                            // 短暂等待后继续
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+                            continue;
+                        }
+                        RecoveryAction::Abort => {
+                            tracing::error!("Fatal error receiving message, shutting down");
+                            break;
+                        }
+                        _ => {
+                            tracing::warn!("Unexpected recovery action for message receive error");
+                            break;
+                        }
+                    }
                 }
             };
 
             // 处理消息，捕获错误以保持服务器运行
             if let Err(e) = self.handle_message(msg) {
-                tracing::error!("Error handling message: {}", e);
-                // 继续运行，不因单个错误而崩溃
+                let result = self.error_handler.handle(&e);
+
+                // 根据恢复策略决定是否继续
+                match result.action {
+                    RecoveryAction::Abort => {
+                        tracing::error!("Fatal error, shutting down server");
+                        self.state = ServerState::ShuttingDown;
+                        break;
+                    }
+                    _ => {
+                        // 其他错误继续运行
+                        if result.notify_client {
+                            // 向客户端发送错误通知
+                            if let Err(notify_err) = self.notify_client_error(&e) {
+                                tracing::error!(
+                                    "Failed to notify client about error: {}",
+                                    notify_err
+                                );
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -378,7 +424,37 @@ impl LspServer {
         self.connection
             .sender
             .send(Message::Response(response))
-            .map_err(|e| Error::Other(anyhow::anyhow!("Failed to send response: {}", e)))?;
+            .map_err(|e| Error::MessageSend(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// 向客户端发送错误通知
+    ///
+    /// 使用 window/showMessage 通知向客户端显示错误消息
+    fn notify_client_error(&self, error: &Error) -> Result<()> {
+        use lsp_types::{MessageType, ShowMessageParams};
+
+        let message_type = match error.severity() {
+            crate::error::ErrorSeverity::Error => MessageType::ERROR,
+            crate::error::ErrorSeverity::Warning => MessageType::WARNING,
+            crate::error::ErrorSeverity::Info => MessageType::INFO,
+        };
+
+        let params = ShowMessageParams {
+            typ: message_type,
+            message: error.to_string(),
+        };
+
+        let notification = Notification {
+            method: "window/showMessage".to_string(),
+            params: serde_json::to_value(params)?,
+        };
+
+        self.connection
+            .sender
+            .send(Message::Notification(notification))
+            .map_err(|e| Error::MessageSend(e.to_string()))?;
 
         Ok(())
     }

@@ -225,6 +225,7 @@ fn test_toml_document_creation() {
         root,
         env_vars,
         config_sections,
+        content: String::new(),
     };
 
     assert_eq!(document.env_vars.len(), 1);
@@ -241,6 +242,7 @@ fn test_empty_toml_document() {
         root,
         env_vars: Vec::new(),
         config_sections: HashMap::new(),
+        content: String::new(),
     };
 
     assert_eq!(document.env_vars.len(), 0);

@@ -46,6 +46,12 @@ url = "2.5"
 # HTTP 客户端（用于加载 Schema）
 reqwest = { version = "0.11", features = ["json"] }
 
+# 正则表达式
+regex = "1.10"
+
+# 终端检测（用于日志颜色）
+atty = "0.2"
+
 [dev-dependencies]
 # 属性测试
 proptest = "1.4"

@@ -41,13 +41,14 @@ url = "redis://localhost"
         println!("尝试 entries.iter()...");
         // let iter = entries.iter(); // 这会失败
         
-        // 方法 2: 解引用后调用 iter()
-        println!("尝试 (*entries).iter()...");
-        for (key, value) in (*entries).iter() {
+        // 方法 2: 使用 get() 获取 Arc 引用，然后迭代
+        println!("尝试 entries.get().iter()...");
+        let entries_arc = entries.get();
+        for (key, value) in entries_arc.iter() {
             println!("  Key: {}", key.value());
             println!("  Value type: {:?}", std::any::type_name_of_val(&value));
         }
         
-        println!("\n成功！使用 (*entries).iter() 可以访问条目");
+        println!("\n成功！使用 entries.get().iter() 可以访问条目");
     }
 }

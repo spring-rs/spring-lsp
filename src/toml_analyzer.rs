@@ -1,8 +1,10 @@
 //! TOML 配置文件分析模块
 
-use lsp_types::Range;
+use lsp_types::{Diagnostic, DiagnosticSeverity, Hover, HoverContents, MarkupContent, MarkupKind, Position, Range};
 use std::collections::HashMap;
 use taplo::dom::node::IntegerValue;
+
+use crate::schema::{PropertySchema, SchemaProvider, TypeInfo};
 
 /// TOML 文档
 /// 
@@ -15,6 +17,8 @@ pub struct TomlDocument {
     pub env_vars: Vec<EnvVarReference>,
     /// 提取的配置节（键为配置前缀）
     pub config_sections: HashMap<String, ConfigSection>,
+    /// 原始内容（用于计算行列位置）
+    pub content: String,
 }
 
 /// 环境变量引用
@@ -78,13 +82,678 @@ pub enum ConfigValue {
 /// TOML 分析器
 /// 
 /// 负责解析 TOML 配置文件，提取环境变量引用和配置节
-pub struct TomlAnalyzer;
+pub struct TomlAnalyzer {
+    /// Schema 提供者
+    schema_provider: SchemaProvider,
+}
 
 impl TomlAnalyzer {
     /// 创建新的 TOML 分析器
-    pub fn new() -> Self {
-        Self
+    pub fn new(schema_provider: SchemaProvider) -> Self {
+        Self { schema_provider }
     }
+    
+    /// 获取 Schema 提供者的引用
+    pub fn schema_provider(&self) -> &SchemaProvider {
+        &self.schema_provider
+    }
+
+    /// 提供悬停提示
+    /// 
+    /// 当用户悬停在 TOML 配置项或环境变量上时，显示相关文档和信息
+    /// 
+    /// # 参数
+    /// 
+    /// * `doc` - 已解析的 TOML 文档
+    /// * `position` - 光标位置
+    /// 
+    /// # 返回
+    /// 
+    /// 如果光标位置有可显示的信息，返回 `Some(Hover)`，否则返回 `None`
+    /// 
+    /// # 功能
+    /// 
+    /// 1. 配置项悬停：显示配置项的文档、类型信息、默认值等
+    /// 2. 环境变量悬停：显示环境变量的当前值（如果可用）
+    pub fn hover(&self, doc: &TomlDocument, position: Position) -> Option<Hover> {
+        // 首先检查是否悬停在环境变量上
+        if let Some(hover) = self.hover_env_var(doc, position) {
+            return Some(hover);
+        }
+        
+        // 然后检查是否悬停在配置项上
+        if let Some(hover) = self.hover_config_property(doc, position) {
+            return Some(hover);
+        }
+        
+        None
+    }
+    
+    /// 为环境变量提供悬停提示
+    fn hover_env_var(&self, doc: &TomlDocument, position: Position) -> Option<Hover> {
+        // 查找光标位置的环境变量
+        for env_var in &doc.env_vars {
+            if self.position_in_range(position, env_var.range) {
+                let mut hover_text = String::new();
+                
+                // 添加标题
+                hover_text.push_str("# 环境变量\n\n");
+                
+                // 添加变量名
+                hover_text.push_str(&format!("**变量名**: `{}`\n\n", env_var.name));
+                
+                // 添加默认值（如果有）
+                if let Some(default) = &env_var.default {
+                    hover_text.push_str(&format!("**默认值**: `{}`\n\n", default));
+                }
+                
+                // 尝试获取环境变量的当前值
+                if let Ok(value) = std::env::var(&env_var.name) {
+                    hover_text.push_str(&format!("**当前值**: `{}`\n\n", value));
+                } else {
+                    hover_text.push_str("**当前值**: *未设置*\n\n");
+                }
+                
+                // 添加说明
+                hover_text.push_str("**说明**:\n\n");
+                hover_text.push_str("环境变量插值允许在配置文件中引用系统环境变量。\n\n");
+                hover_text.push_str("**格式**:\n");
+                hover_text.push_str("- `${VAR}` - 引用环境变量，如果未设置则报错\n");
+                hover_text.push_str("- `${VAR:default}` - 引用环境变量，如果未设置则使用默认值\n");
+                
+                return Some(Hover {
+                    contents: HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: hover_text,
+                    }),
+                    range: Some(env_var.range),
+                });
+            }
+        }
+        
+        None
+    }
+    
+    /// 为配置项提供悬停提示
+    fn hover_config_property(&self, doc: &TomlDocument, position: Position) -> Option<Hover> {
+        // 遍历所有配置节
+        for (prefix, section) in &doc.config_sections {
+            // 检查是否悬停在配置节的某个属性上
+            for (key, property) in &section.properties {
+                if self.position_in_range(position, property.range) {
+                    // 获取该配置项的 Schema
+                    if let Some(plugin_schema) = self.schema_provider.get_plugin_schema(prefix) {
+                        if let Some(property_schema) = plugin_schema.properties.get(key) {
+                            return Some(self.create_property_hover(
+                                prefix,
+                                key,
+                                property,
+                                property_schema,
+                            ));
+                        }
+                    }
+                    
+                    // 如果没有找到 Schema，返回基本信息
+                    return Some(self.create_basic_property_hover(prefix, key, property));
+                }
+            }
+        }
+        
+        None
+    }
+    
+    /// 创建配置项的悬停提示（有 Schema）
+    fn create_property_hover(
+        &self,
+        prefix: &str,
+        key: &str,
+        property: &ConfigProperty,
+        schema: &PropertySchema,
+    ) -> Hover {
+        let mut hover_text = String::new();
+        
+        // 添加标题
+        hover_text.push_str(&format!("# 配置项: `{}.{}`\n\n", prefix, key));
+        
+        // 添加描述
+        if !schema.description.is_empty() {
+            hover_text.push_str(&format!("{}\n\n", schema.description));
+        }
+        
+        // 添加类型信息
+        hover_text.push_str(&format!("**类型**: {}\n\n", self.type_info_to_string(&schema.type_info)));
+        
+        // 添加当前值
+        hover_text.push_str(&format!("**当前值**: `{}`\n\n", self.config_value_to_string(&property.value)));
+        
+        // 添加默认值（如果有）
+        if let Some(default) = &schema.default {
+            hover_text.push_str(&format!("**默认值**: `{}`\n\n", self.value_to_string(default)));
+        }
+        
+        // 添加是否必需
+        if schema.required {
+            hover_text.push_str("**必需**: 是\n\n");
+        }
+        
+        // 添加枚举值（如果有）
+        if let TypeInfo::String { enum_values: Some(enum_vals), .. } = &schema.type_info {
+            hover_text.push_str("**允许的值**:\n");
+            for val in enum_vals {
+                hover_text.push_str(&format!("- `{}`\n", val));
+            }
+            hover_text.push_str("\n");
+        }
+        
+        // 添加范围限制（如果有）
+        match &schema.type_info {
+            TypeInfo::Integer { min, max } => {
+                if min.is_some() || max.is_some() {
+                    hover_text.push_str("**值范围**:\n");
+                    if let Some(min_val) = min {
+                        hover_text.push_str(&format!("- 最小值: `{}`\n", min_val));
+                    }
+                    if let Some(max_val) = max {
+                        hover_text.push_str(&format!("- 最大值: `{}`\n", max_val));
+                    }
+                    hover_text.push_str("\n");
+                }
+            }
+            TypeInfo::Float { min, max } => {
+                if min.is_some() || max.is_some() {
+                    hover_text.push_str("**值范围**:\n");
+                    if let Some(min_val) = min {
+                        hover_text.push_str(&format!("- 最小值: `{}`\n", min_val));
+                    }
+                    if let Some(max_val) = max {
+                        hover_text.push_str(&format!("- 最大值: `{}`\n", max_val));
+                    }
+                    hover_text.push_str("\n");
+                }
+            }
+            TypeInfo::String { min_length, max_length, .. } => {
+                if min_length.is_some() || max_length.is_some() {
+                    hover_text.push_str("**长度限制**:\n");
+                    if let Some(min_len) = min_length {
+                        hover_text.push_str(&format!("- 最小长度: `{}`\n", min_len));
+                    }
+                    if let Some(max_len) = max_length {
+                        hover_text.push_str(&format!("- 最大长度: `{}`\n", max_len));
+                    }
+                    hover_text.push_str("\n");
+                }
+            }
+            _ => {}
+        }
+        
+        // 添加废弃警告（如果有）
+        if let Some(deprecated_msg) = &schema.deprecated {
+            hover_text.push_str(&format!("⚠️ **已废弃**: {}\n\n", deprecated_msg));
+        }
+        
+        // 添加配置文件位置提示
+        hover_text.push_str("---\n\n");
+        hover_text.push_str(&format!("*配置节*: `[{}]`\n", prefix));
+        hover_text.push_str("*配置文件*: `config/app.toml`\n");
+        
+        Hover {
+            contents: HoverContents::Markup(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: hover_text,
+            }),
+            range: Some(property.range),
+        }
+    }
+    
+    /// 创建配置项的基本悬停提示（无 Schema）
+    fn create_basic_property_hover(
+        &self,
+        prefix: &str,
+        key: &str,
+        property: &ConfigProperty,
+    ) -> Hover {
+        let mut hover_text = String::new();
+        
+        // 添加标题
+        hover_text.push_str(&format!("# 配置项: `{}.{}`\n\n", prefix, key));
+        
+        // 添加当前值
+        hover_text.push_str(&format!("**当前值**: `{}`\n\n", self.config_value_to_string(&property.value)));
+        
+        // 添加类型
+        hover_text.push_str(&format!("**类型**: {}\n\n", self.config_value_type_name(&property.value)));
+        
+        // 添加警告
+        hover_text.push_str("⚠️ **警告**: 此配置项未在 Schema 中定义\n\n");
+        
+        // 添加配置文件位置提示
+        hover_text.push_str("---\n\n");
+        hover_text.push_str(&format!("*配置节*: `[{}]`\n", prefix));
+        hover_text.push_str("*配置文件*: `config/app.toml`\n");
+        
+        Hover {
+            contents: HoverContents::Markup(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: hover_text,
+            }),
+            range: Some(property.range),
+        }
+    }
+    
+    /// 检查位置是否在范围内
+    fn position_in_range(&self, position: Position, range: Range) -> bool {
+        // 检查行号
+        if position.line < range.start.line || position.line > range.end.line {
+            return false;
+        }
+        
+        // 如果在同一行，检查字符位置
+        if position.line == range.start.line && position.character < range.start.character {
+            return false;
+        }
+        
+        if position.line == range.end.line && position.character > range.end.character {
+            return false;
+        }
+        
+        true
+    }
+    
+    /// 将配置值转换为字符串
+    fn config_value_to_string(&self, value: &ConfigValue) -> String {
+        match value {
+            ConfigValue::String(s) => format!("\"{}\"", s),
+            ConfigValue::Integer(i) => i.to_string(),
+            ConfigValue::Float(f) => f.to_string(),
+            ConfigValue::Boolean(b) => b.to_string(),
+            ConfigValue::Array(arr) => {
+                let items: Vec<String> = arr.iter().map(|v| self.config_value_to_string(v)).collect();
+                format!("[{}]", items.join(", "))
+            }
+            ConfigValue::Table(table) => {
+                let items: Vec<String> = table.iter()
+                    .map(|(k, v)| format!("{} = {}", k, self.config_value_to_string(v)))
+                    .collect();
+                format!("{{ {} }}", items.join(", "))
+            }
+        }
+    }
+    
+    /// 将 Schema 中的值转换为字符串
+    fn value_to_string(&self, value: &crate::schema::Value) -> String {
+        match value {
+            crate::schema::Value::String(s) => format!("\"{}\"", s),
+            crate::schema::Value::Integer(n) => n.to_string(),
+            crate::schema::Value::Float(f) => f.to_string(),
+            crate::schema::Value::Boolean(b) => b.to_string(),
+            crate::schema::Value::Array(arr) => {
+                let items: Vec<String> = arr.iter().map(|v| self.value_to_string(v)).collect();
+                format!("[{}]", items.join(", "))
+            }
+            crate::schema::Value::Table(obj) => {
+                let items: Vec<String> = obj.iter()
+                    .map(|(k, v)| format!("{} = {}", k, self.value_to_string(v)))
+                    .collect();
+                format!("{{ {} }}", items.join(", "))
+            }
+        }
+    }
+
+    /// 验证配置文件
+    /// 
+    /// 根据 Schema 验证配置文件，生成诊断信息
+    /// 
+    /// # 参数
+    /// 
+    /// * `doc` - 已解析的 TOML 文档
+    /// 
+    /// # 返回
+    /// 
+    /// 诊断信息列表，包含错误、警告等
+    /// 
+    /// # 验证项
+    /// 
+    /// 1. 配置项定义检查：检查配置项是否在 Schema 中定义
+    /// 2. 类型验证：检查配置值类型是否匹配
+    /// 3. 必需项检查：检查必需的配置项是否存在
+    /// 4. 废弃项检查：检查是否使用了废弃的配置项
+    /// 5. 环境变量语法验证：检查环境变量插值语法是否正确
+    /// 6. 值范围验证：检查配置值是否在允许的范围内
+    pub fn validate(&self, doc: &TomlDocument) -> Vec<Diagnostic> {
+        let mut diagnostics = Vec::new();
+
+        // 1. 验证环境变量语法
+        diagnostics.extend(self.validate_env_var_syntax(&doc.env_vars));
+
+        // 2. 验证配置节和属性
+        for (prefix, section) in &doc.config_sections {
+            // 检查配置节是否在 Schema 中定义
+            if let Some(plugin_schema) = self.schema_provider.get_plugin_schema(prefix) {
+                // 验证配置节中的属性
+                diagnostics.extend(self.validate_section(section, &plugin_schema));
+                
+                // 检查必需的配置项是否存在
+                diagnostics.extend(self.validate_required_properties(section, &plugin_schema));
+            } else {
+                // 配置节未在 Schema 中定义
+                diagnostics.push(Diagnostic {
+                    range: section.range,
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    code: Some(lsp_types::NumberOrString::String("undefined-section".to_string())),
+                    message: format!("配置节 '{}' 未在 Schema 中定义", prefix),
+                    source: Some("spring-lsp".to_string()),
+                    ..Default::default()
+                });
+            }
+        }
+
+        diagnostics
+    }
+
+    /// 验证环境变量语法
+    fn validate_env_var_syntax(&self, env_vars: &[EnvVarReference]) -> Vec<Diagnostic> {
+        let mut diagnostics = Vec::new();
+
+        for env_var in env_vars {
+            // 检查变量名是否为空
+            if env_var.name.is_empty() {
+                diagnostics.push(Diagnostic {
+                    range: env_var.range,
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    code: Some(lsp_types::NumberOrString::String("empty-var-name".to_string())),
+                    message: "环境变量名不能为空".to_string(),
+                    source: Some("spring-lsp".to_string()),
+                    ..Default::default()
+                });
+            }
+
+            // 检查变量名是否符合命名规范（大写字母、数字、下划线）
+            if !env_var.name.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_') {
+                diagnostics.push(Diagnostic {
+                    range: env_var.range,
+                    severity: Some(DiagnosticSeverity::WARNING),
+                    code: Some(lsp_types::NumberOrString::String("invalid-var-name".to_string())),
+                    message: format!(
+                        "环境变量名 '{}' 不符合命名规范，建议使用大写字母、数字和下划线",
+                        env_var.name
+                    ),
+                    source: Some("spring-lsp".to_string()),
+                    ..Default::default()
+                });
+            }
+        }
+
+        diagnostics
+    }
+
+    /// 验证配置节中的属性
+    fn validate_section(
+        &self,
+        section: &ConfigSection,
+        plugin_schema: &crate::schema::PluginSchema,
+    ) -> Vec<Diagnostic> {
+        let mut diagnostics = Vec::new();
+
+        for (key, property) in &section.properties {
+            if let Some(property_schema) = plugin_schema.properties.get(key) {
+                // 检查是否废弃
+                if let Some(deprecated_msg) = &property_schema.deprecated {
+                    diagnostics.push(Diagnostic {
+                        range: property.range,
+                        severity: Some(DiagnosticSeverity::WARNING),
+                        code: Some(lsp_types::NumberOrString::String("deprecated-property".to_string())),
+                        message: format!("配置项 '{}' 已废弃: {}", key, deprecated_msg),
+                        source: Some("spring-lsp".to_string()),
+                        ..Default::default()
+                    });
+                }
+
+                // 验证类型
+                diagnostics.extend(self.validate_property_type(property, property_schema));
+
+                // 验证值范围
+                diagnostics.extend(self.validate_property_range(property, property_schema));
+            } else {
+                // 配置项未在 Schema 中定义
+                diagnostics.push(Diagnostic {
+                    range: property.range,
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    code: Some(lsp_types::NumberOrString::String("undefined-property".to_string())),
+                    message: format!("配置项 '{}' 未在 Schema 中定义", key),
+                    source: Some("spring-lsp".to_string()),
+                    ..Default::default()
+                });
+            }
+        }
+
+        diagnostics
+    }
+
+    /// 验证配置属性类型
+    fn validate_property_type(
+        &self,
+        property: &ConfigProperty,
+        schema: &PropertySchema,
+    ) -> Vec<Diagnostic> {
+        let mut diagnostics = Vec::new();
+
+        let type_matches = match (&property.value, &schema.type_info) {
+            (ConfigValue::String(_), TypeInfo::String { .. }) => true,
+            (ConfigValue::Integer(_), TypeInfo::Integer { .. }) => true,
+            (ConfigValue::Float(_), TypeInfo::Float { .. }) => true,
+            (ConfigValue::Boolean(_), TypeInfo::Boolean) => true,
+            (ConfigValue::Array(_), TypeInfo::Array { .. }) => true,
+            (ConfigValue::Table(_), TypeInfo::Object { .. }) => true,
+            _ => false,
+        };
+
+        if !type_matches {
+            let expected_type = self.type_info_to_string(&schema.type_info);
+            let actual_type = self.config_value_type_name(&property.value);
+            
+            diagnostics.push(Diagnostic {
+                range: property.range,
+                severity: Some(DiagnosticSeverity::ERROR),
+                code: Some(lsp_types::NumberOrString::String("type-mismatch".to_string())),
+                message: format!(
+                    "配置项 '{}' 的类型不匹配：期望 {}，实际 {}",
+                    property.key, expected_type, actual_type
+                ),
+                source: Some("spring-lsp".to_string()),
+                ..Default::default()
+            });
+        }
+
+        diagnostics
+    }
+
+    /// 验证配置属性值范围
+    fn validate_property_range(
+        &self,
+        property: &ConfigProperty,
+        schema: &PropertySchema,
+    ) -> Vec<Diagnostic> {
+        let mut diagnostics = Vec::new();
+
+        match (&property.value, &schema.type_info) {
+            // 验证字符串长度和枚举值
+            (ConfigValue::String(s), TypeInfo::String { enum_values, min_length, max_length }) => {
+                // 检查枚举值
+                if let Some(enum_vals) = enum_values {
+                    if !enum_vals.contains(s) {
+                        diagnostics.push(Diagnostic {
+                            range: property.range,
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            code: Some(lsp_types::NumberOrString::String("invalid-enum-value".to_string())),
+                            message: format!(
+                                "配置项 '{}' 的值 '{}' 不在允许的枚举值中：{:?}",
+                                property.key, s, enum_vals
+                            ),
+                            source: Some("spring-lsp".to_string()),
+                            ..Default::default()
+                        });
+                    }
+                }
+
+                // 检查最小长度
+                if let Some(min_len) = min_length {
+                    if s.len() < *min_len {
+                        diagnostics.push(Diagnostic {
+                            range: property.range,
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            code: Some(lsp_types::NumberOrString::String("string-too-short".to_string())),
+                            message: format!(
+                                "配置项 '{}' 的值长度 {} 小于最小长度 {}",
+                                property.key, s.len(), min_len
+                            ),
+                            source: Some("spring-lsp".to_string()),
+                            ..Default::default()
+                        });
+                    }
+                }
+
+                // 检查最大长度
+                if let Some(max_len) = max_length {
+                    if s.len() > *max_len {
+                        diagnostics.push(Diagnostic {
+                            range: property.range,
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            code: Some(lsp_types::NumberOrString::String("string-too-long".to_string())),
+                            message: format!(
+                                "配置项 '{}' 的值长度 {} 超过最大长度 {}",
+                                property.key, s.len(), max_len
+                            ),
+                            source: Some("spring-lsp".to_string()),
+                            ..Default::default()
+                        });
+                    }
+                }
+            }
+
+            // 验证整数范围
+            (ConfigValue::Integer(i), TypeInfo::Integer { min, max }) => {
+                if let Some(min_val) = min {
+                    if *i < *min_val {
+                        diagnostics.push(Diagnostic {
+                            range: property.range,
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            code: Some(lsp_types::NumberOrString::String("value-too-small".to_string())),
+                            message: format!(
+                                "配置项 '{}' 的值 {} 小于最小值 {}",
+                                property.key, i, min_val
+                            ),
+                            source: Some("spring-lsp".to_string()),
+                            ..Default::default()
+                        });
+                    }
+                }
+
+                if let Some(max_val) = max {
+                    if *i > *max_val {
+                        diagnostics.push(Diagnostic {
+                            range: property.range,
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            code: Some(lsp_types::NumberOrString::String("value-too-large".to_string())),
+                            message: format!(
+                                "配置项 '{}' 的值 {} 超过最大值 {}",
+                                property.key, i, max_val
+                            ),
+                            source: Some("spring-lsp".to_string()),
+                            ..Default::default()
+                        });
+                    }
+                }
+            }
+
+            // 验证浮点数范围
+            (ConfigValue::Float(f), TypeInfo::Float { min, max }) => {
+                if let Some(min_val) = min {
+                    if *f < *min_val {
+                        diagnostics.push(Diagnostic {
+                            range: property.range,
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            code: Some(lsp_types::NumberOrString::String("value-too-small".to_string())),
+                            message: format!(
+                                "配置项 '{}' 的值 {} 小于最小值 {}",
+                                property.key, f, min_val
+                            ),
+                            source: Some("spring-lsp".to_string()),
+                            ..Default::default()
+                        });
+                    }
+                }
+
+                if let Some(max_val) = max {
+                    if *f > *max_val {
+                        diagnostics.push(Diagnostic {
+                            range: property.range,
+                            severity: Some(DiagnosticSeverity::ERROR),
+                            code: Some(lsp_types::NumberOrString::String("value-too-large".to_string())),
+                            message: format!(
+                                "配置项 '{}' 的值 {} 超过最大值 {}",
+                                property.key, f, max_val
+                            ),
+                            source: Some("spring-lsp".to_string()),
+                            ..Default::default()
+                        });
+                    }
+                }
+            }
+
+            _ => {}
+        }
+
+        diagnostics
+    }
+
+    /// 验证必需的配置项
+    fn validate_required_properties(
+        &self,
+        section: &ConfigSection,
+        plugin_schema: &crate::schema::PluginSchema,
+    ) -> Vec<Diagnostic> {
+        let mut diagnostics = Vec::new();
+
+        for (key, property_schema) in &plugin_schema.properties {
+            if property_schema.required && !section.properties.contains_key(key) {
+                diagnostics.push(Diagnostic {
+                    range: section.range,
+                    severity: Some(DiagnosticSeverity::WARNING),
+                    code: Some(lsp_types::NumberOrString::String("missing-required-property".to_string())),
+                    message: format!("缺少必需的配置项 '{}'", key),
+                    source: Some("spring-lsp".to_string()),
+                    ..Default::default()
+                });
+            }
+        }
+
+        diagnostics
+    }
+
+    /// 将 TypeInfo 转换为字符串描述
+    fn type_info_to_string(&self, type_info: &TypeInfo) -> String {
+        match type_info {
+            TypeInfo::String { .. } => "字符串".to_string(),
+            TypeInfo::Integer { .. } => "整数".to_string(),
+            TypeInfo::Float { .. } => "浮点数".to_string(),
+            TypeInfo::Boolean => "布尔值".to_string(),
+            TypeInfo::Array { .. } => "数组".to_string(),
+            TypeInfo::Object { .. } => "对象".to_string(),
+        }
+    }
+
+    /// 获取配置值的类型名称
+    fn config_value_type_name(&self, value: &ConfigValue) -> String {
+        match value {
+            ConfigValue::String(_) => "字符串".to_string(),
+            ConfigValue::Integer(_) => "整数".to_string(),
+            ConfigValue::Float(_) => "浮点数".to_string(),
+            ConfigValue::Boolean(_) => "布尔值".to_string(),
+            ConfigValue::Array(_) => "数组".to_string(),
+            ConfigValue::Table(_) => "对象".to_string(),
+        }
+    }
+
 
     /// 解析 TOML 文档
     /// 
@@ -128,12 +797,13 @@ impl TomlAnalyzer {
         let env_vars = self.extract_env_vars(content);
         
         // 提取配置节
-        let config_sections = self.extract_config_sections(&root);
+        let config_sections = self.extract_config_sections(&root, content);
         
         Ok(TomlDocument {
             root,
             env_vars,
             config_sections,
+            content: content.to_string(),
         })
     }
 
@@ -196,12 +866,34 @@ impl TomlAnalyzer {
     /// 提取配置节
     /// 
     /// 遍历 TOML DOM 树，提取所有配置节和属性
-    fn extract_config_sections(&self, _root: &taplo::dom::Node) -> HashMap<String, ConfigSection> {
-        let sections = HashMap::new();
+    fn extract_config_sections(&self, root: &taplo::dom::Node, content: &str) -> HashMap<String, ConfigSection> {
+        let mut sections = HashMap::new();
 
-        // TODO: 修复 taplo Shared 类型的 API 使用问题
-        // 当前 taplo 的 Shared<T> 类型无法直接访问内部数据
-        // 需要研究正确的 API 使用方式或切换到其他 TOML 库
+        // 获取根表
+        if let Some(table) = root.as_table() {
+            let entries = table.entries();
+            
+            // 使用 get() 获取 Arc 引用，然后迭代
+            let entries_arc = entries.get();
+            for (key, value) in entries_arc.iter() {
+                let prefix = key.value().to_string();
+                
+                // 只处理表类型的节（配置节）
+                if value.as_table().is_some() {
+                    let properties = self.extract_properties(value, content);
+                    let range = self.node_to_range(value, content);
+                    
+                    sections.insert(
+                        prefix.clone(),
+                        ConfigSection {
+                            prefix,
+                            properties,
+                            range,
+                        },
+                    );
+                }
+            }
+        }
         
         sections
     }
@@ -209,10 +901,30 @@ impl TomlAnalyzer {
     /// 提取配置属性
     /// 
     /// 从 TOML 节点中提取所有属性
-    fn extract_properties(&self, _node: &taplo::dom::Node) -> HashMap<String, ConfigProperty> {
-        let properties = HashMap::new();
+    fn extract_properties(&self, node: &taplo::dom::Node, content: &str) -> HashMap<String, ConfigProperty> {
+        let mut properties = HashMap::new();
 
-        // TODO: 修复 taplo Shared 类型的 API 使用问题
+        // 获取表节点
+        if let Some(table) = node.as_table() {
+            let entries = table.entries();
+            
+            // 使用 get() 获取 Arc 引用，然后迭代
+            let entries_arc = entries.get();
+            for (key, value) in entries_arc.iter() {
+                let key_str = key.value().to_string();
+                let config_value = self.node_to_config_value(value);
+                let range = self.node_to_range(value, content);
+                
+                properties.insert(
+                    key_str.clone(),
+                    ConfigProperty {
+                        key: key_str,
+                        value: config_value,
+                        range,
+                    },
+                );
+            }
+        }
         
         properties
     }
@@ -230,35 +942,52 @@ impl TomlAnalyzer {
                 }
             }
             taplo::dom::Node::Float(f) => ConfigValue::Float(f.value()),
-            taplo::dom::Node::Array(_arr) => {
-                // TODO: 修复 taplo Shared 类型的 API 使用问题
-                ConfigValue::Array(Vec::new())
+            taplo::dom::Node::Array(arr) => {
+                let items = arr.items();
+                let mut values = Vec::new();
+                
+                // 使用 get() 获取 Arc 引用，然后迭代
+                let items_arc = items.get();
+                for item in items_arc.iter() {
+                    values.push(self.node_to_config_value(item));
+                }
+                
+                ConfigValue::Array(values)
             }
-            taplo::dom::Node::Table(_table) => {
-                // TODO: 修复 taplo Shared 类型的 API 使用问题
-                ConfigValue::Table(HashMap::new())
+            taplo::dom::Node::Table(table) => {
+                let entries = table.entries();
+                let mut map = HashMap::new();
+                
+                // 使用 get() 获取 Arc 引用，然后迭代
+                let entries_arc = entries.get();
+                for (key, value) in entries_arc.iter() {
+                    let key_str = key.value().to_string();
+                    map.insert(key_str, self.node_to_config_value(value));
+                }
+                
+                ConfigValue::Table(map)
             }
             _ => ConfigValue::String(String::new()), // 默认值
         }
     }
 
     /// 将 TOML 节点转换为 LSP 范围
-    fn node_to_range(&self, node: &taplo::dom::Node) -> Range {
+    /// 
+    /// 将 taplo 提供的字节偏移量转换为行号和字符位置
+    fn node_to_range(&self, node: &taplo::dom::Node, content: &str) -> Range {
         // taplo 的 text_ranges 返回一个迭代器
         let mut text_ranges = node.text_ranges();
         if let Some(first_range) = text_ranges.next() {
             let start: usize = first_range.start().into();
             let end: usize = first_range.end().into();
 
+            // 将字节偏移量转换为行号和字符位置
+            let start_pos = self.byte_offset_to_position(content, start);
+            let end_pos = self.byte_offset_to_position(content, end);
+
             Range {
-                start: lsp_types::Position {
-                    line: 0, // taplo 不直接提供行号，这里简化处理
-                    character: start as u32,
-                },
-                end: lsp_types::Position {
-                    line: 0,
-                    character: end as u32,
-                },
+                start: start_pos,
+                end: end_pos,
             }
         } else {
             // 默认范围
@@ -274,10 +1003,33 @@ impl TomlAnalyzer {
             }
         }
     }
-}
-
-impl Default for TomlAnalyzer {
-    fn default() -> Self {
-        Self::new()
+    
+    /// 将字节偏移量转换为 LSP Position
+    /// 
+    /// 遍历内容，计算字节偏移量对应的行号和字符位置
+    fn byte_offset_to_position(&self, content: &str, byte_offset: usize) -> lsp_types::Position {
+        let mut line = 0;
+        let mut character = 0;
+        let mut current_offset = 0;
+        
+        for ch in content.chars() {
+            if current_offset >= byte_offset {
+                break;
+            }
+            
+            if ch == '\n' {
+                line += 1;
+                character = 0;
+            } else {
+                character += 1;
+            }
+            
+            current_offset += ch.len_utf8();
+        }
+        
+        lsp_types::Position {
+            line: line as u32,
+            character: character as u32,
+        }
     }
 }

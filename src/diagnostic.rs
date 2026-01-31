@@ -1,7 +1,8 @@
 //! 诊断引擎模块
 
 use dashmap::DashMap;
-use lsp_types::{Diagnostic, Url};
+use lsp_server::Connection;
+use lsp_types::{Diagnostic, PublishDiagnosticsParams, Url};
 
 /// 诊断引擎
 pub struct DiagnosticEngine {
@@ -36,6 +37,52 @@ impl DiagnosticEngine {
             .get(uri)
             .map(|v| v.clone())
             .unwrap_or_default()
+    }
+
+    /// 发布诊断到客户端
+    ///
+    /// 通过 LSP 的 `textDocument/publishDiagnostics` 通知将诊断信息发送给客户端。
+    /// 如果文档没有诊断信息，将发送空的诊断列表以清除之前的诊断。
+    ///
+    /// # 参数
+    ///
+    /// * `connection` - LSP 连接，用于发送通知
+    /// * `uri` - 文档 URI
+    ///
+    /// # 返回
+    ///
+    /// 如果发送成功返回 `Ok(())`，否则返回错误
+    pub fn publish(&self, connection: &Connection, uri: &Url) -> crate::Result<()> {
+        use lsp_server::{Message, Notification};
+        use lsp_types::notification::{Notification as _, PublishDiagnostics};
+
+        // 获取文档的诊断（如果没有则为空列表）
+        let diagnostics = self.get(uri);
+        let diagnostics_count = diagnostics.len();
+
+        // 创建发布诊断参数
+        let params = PublishDiagnosticsParams {
+            uri: uri.clone(),
+            diagnostics,
+            version: None,
+        };
+
+        // 创建通知
+        let notification = Notification {
+            method: PublishDiagnostics::METHOD.to_string(),
+            params: serde_json::to_value(params)
+                .map_err(|e| crate::Error::Other(anyhow::anyhow!("Failed to serialize diagnostics: {}", e)))?,
+        };
+
+        // 发送通知
+        connection
+            .sender
+            .send(Message::Notification(notification))
+            .map_err(|e| crate::Error::Other(anyhow::anyhow!("Failed to send diagnostics: {}", e)))?;
+
+        tracing::debug!("Published {} diagnostics for {}", diagnostics_count, uri);
+
+        Ok(())
     }
 }
 

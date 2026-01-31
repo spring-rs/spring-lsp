@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 5a8a7b24cd213ec50cc8328b01a06047ddca7afcf9cb95f92da5259e6e21fdb8 # shrinks to documents = [RustDocument { uri: Url { scheme: "file", cannot_be_a_base: false, username: "", password: None, host: None, port: None, path: "/a.rs", query: None, fragment: None }, content: "", macros: [Route(RouteMacro { path: "/users", methods: [Get], middlewares: [], handler_name: "a", range: Range { start: Position { line: 27, character: 5 }, end: Position { line: 27, character: 0 } } })] }]

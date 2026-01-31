@@ -2014,11 +2014,9 @@ proptest! {
         code in service_struct()
     ) {
         use spring_lsp::completion::CompletionEngine;
-        use spring_lsp::schema::SchemaProvider;
         
         let analyzer = MacroAnalyzer::new();
-        let schema_provider = SchemaProvider::new();
-        let engine = CompletionEngine::new(schema_provider);
+        let engine = CompletionEngine::new();
         
         // 解析并提取宏
         let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
@@ -2092,11 +2090,9 @@ proptest! {
         code in service_struct_with_inject()
     ) {
         use spring_lsp::completion::CompletionEngine;
-        use spring_lsp::schema::SchemaProvider;
         
         let analyzer = MacroAnalyzer::new();
-        let schema_provider = SchemaProvider::new();
-        let engine = CompletionEngine::new(schema_provider);
+        let engine = CompletionEngine::new();
         
         // 解析并提取宏
         let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
@@ -2167,11 +2163,9 @@ proptest! {
         code in auto_config_macro()
     ) {
         use spring_lsp::completion::CompletionEngine;
-        use spring_lsp::schema::SchemaProvider;
         
         let analyzer = MacroAnalyzer::new();
-        let schema_provider = SchemaProvider::new();
-        let engine = CompletionEngine::new(schema_provider);
+        let engine = CompletionEngine::new();
         
         // 解析并提取宏
         let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
@@ -2242,11 +2236,9 @@ proptest! {
         code in route_macro_single_method()
     ) {
         use spring_lsp::completion::CompletionEngine;
-        use spring_lsp::schema::SchemaProvider;
         
         let analyzer = MacroAnalyzer::new();
-        let schema_provider = SchemaProvider::new();
-        let engine = CompletionEngine::new(schema_provider);
+        let engine = CompletionEngine::new();
         
         // 解析并提取宏
         let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
@@ -2337,11 +2329,9 @@ proptest! {
         ]
     ) {
         use spring_lsp::completion::CompletionEngine;
-        use spring_lsp::schema::SchemaProvider;
         
         let analyzer = MacroAnalyzer::new();
-        let schema_provider = SchemaProvider::new();
-        let engine = CompletionEngine::new(schema_provider);
+        let engine = CompletionEngine::new();
         
         // 解析并提取宏
         let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
@@ -2431,11 +2421,9 @@ proptest! {
         code in complex_rust_code_with_macros()
     ) {
         use spring_lsp::completion::CompletionEngine;
-        use spring_lsp::schema::SchemaProvider;
         
         let analyzer = MacroAnalyzer::new();
-        let schema_provider = SchemaProvider::new();
-        let engine = CompletionEngine::new(schema_provider);
+        let engine = CompletionEngine::new();
         
         // 解析并提取宏
         let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
@@ -2486,11 +2474,9 @@ proptest! {
         code in complex_rust_code_with_macros()
     ) {
         use spring_lsp::completion::CompletionEngine;
-        use spring_lsp::schema::SchemaProvider;
         
         let analyzer = MacroAnalyzer::new();
-        let schema_provider = SchemaProvider::new();
-        let engine = CompletionEngine::new(schema_provider);
+        let engine = CompletionEngine::new();
         
         // 解析并提取宏
         let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
@@ -2535,11 +2521,9 @@ proptest! {
         code in complex_rust_code_with_macros()
     ) {
         use spring_lsp::completion::CompletionEngine;
-        use spring_lsp::schema::SchemaProvider;
         
         let analyzer = MacroAnalyzer::new();
-        let schema_provider = SchemaProvider::new();
-        let engine = CompletionEngine::new(schema_provider);
+        let engine = CompletionEngine::new();
         
         // 解析并提取宏
         let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();
@@ -2602,11 +2586,9 @@ proptest! {
         code in complex_rust_code_with_macros()
     ) {
         use spring_lsp::completion::CompletionEngine;
-        use spring_lsp::schema::SchemaProvider;
         
         let analyzer = MacroAnalyzer::new();
-        let schema_provider = SchemaProvider::new();
-        let engine = CompletionEngine::new(schema_provider);
+        let engine = CompletionEngine::new();
         
         // 解析并提取宏
         let parse_result = analyzer.parse(uri.clone(), code.clone());
@@ -2636,11 +2618,9 @@ proptest! {
         code in complex_rust_code_with_macros()
     ) {
         use spring_lsp::completion::CompletionEngine;
-        use spring_lsp::schema::SchemaProvider;
         
         let analyzer = MacroAnalyzer::new();
-        let schema_provider = SchemaProvider::new();
-        let engine = CompletionEngine::new(schema_provider);
+        let engine = CompletionEngine::new();
         
         // 解析并提取宏
         let doc = analyzer.parse(uri.clone(), code.clone()).unwrap();

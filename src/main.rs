@@ -1,15 +1,14 @@
 use anyhow::Result;
+use spring_lsp::logging::init_logging;
 use spring_lsp::server::LspServer;
 
 fn main() -> Result<()> {
     // 初始化日志系统
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .with_writer(std::io::stderr)
-        .init();
+    // 使用环境变量配置：
+    // - SPRING_LSP_LOG_LEVEL: 日志级别（trace, debug, info, warn, error）
+    // - SPRING_LSP_VERBOSE: 启用详细日志（1 或 true）
+    // - SPRING_LSP_LOG_FILE: 日志文件路径（可选）
+    init_logging().expect("Failed to initialize logging system");
 
     tracing::info!("Starting spring-lsp language server");
 
