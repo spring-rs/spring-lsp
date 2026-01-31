@@ -1,0 +1,11 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc f4c19ecbfc0d7179f0d8e73a67e173524869be467980463f8cec5ace4a719a6a # shrinks to uri = Url { scheme: "file", cannot_be_a_base: false, username: "", password: None, host: None, port: None, path: "/test/_.rs", query: None, fragment: None }, code = "use _::_;\n"
+cc b58f98509d027b2672d67201b25dad4bbef285e4c03124e364511ca4c009e313 # shrinks to uri = Url { scheme: "file", cannot_be_a_base: false, username: "", password: None, host: None, port: None, path: "/test/A.rs", query: None, fragment: None }, code = "impl A {\n    fn _(&self) {\n        // method body\n    }\n}\n"
+cc bf32c698a5fb673d761a03838f83da401f91957b8b7a132c622c3f23a3263831 # shrinks to uri = Url { scheme: "file", cannot_be_a_base: false, username: "", password: None, host: None, port: None, path: "/test/A.rs", query: None, fragment: None }, code = "fn _() {\n    // function body\n}\n"
+cc 29f6f1337315fe886d50ad36e2e6c2d0ad84df79b98cda5deacb5935720e489f # shrinks to uri = Url { scheme: "file", cannot_be_a_base: false, username: "", password: None, host: None, port: None, path: "/test/a.rs", query: None, fragment: None }, code = "fn _() {\n    // function body\n}\n"
+cc 382b4069b49318d7eec804f1dace895baf20f98f04bcb532a6cdc6e6a97e2680 # shrinks to uri = Url { scheme: "file", cannot_be_a_base: false, username: "", password: None, host: None, port: None, path: "/test/_a.rs", query: None, fragment: None }, code = "mod for;\n"

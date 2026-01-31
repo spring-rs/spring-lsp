@@ -1,0 +1,63 @@
+[package]
+name = "spring-lsp"
+version = "0.1.0"
+edition = "2021"
+authors = ["spring-rs contributors"]
+license = "MIT OR Apache-2.0"
+description = "Language Server Protocol implementation for spring-rs framework"
+repository = "https://github.com/spring-rs/spring-lsp"
+keywords = ["lsp", "language-server", "spring-rs", "toml", "rust"]
+categories = ["development-tools"]
+readme = "README.md"
+
+[dependencies]
+# LSP 协议实现
+lsp-server = "0.7"
+lsp-types = "0.95"
+
+# TOML 处理
+taplo = "0.13"
+
+# Rust 语法解析
+syn = { version = "2.0", features = ["full", "extra-traits"] }
+quote = "1.0"
+
+# 异步运行时
+tokio = { version = "1.35", features = ["full"] }
+
+# 并发数据结构
+dashmap = "5.5"
+
+# 日志和追踪
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# 序列化
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# 错误处理
+anyhow = "1.0"
+thiserror = "1.0"
+
+# URL 处理
+url = "2.5"
+
+# HTTP 客户端（用于加载 Schema）
+reqwest = { version = "0.11", features = ["json"] }
+
+[dev-dependencies]
+# 属性测试
+proptest = "1.4"
+
+# 测试工具
+tempfile = "3.8"
+pretty_assertions = "1.4"
+
+[[bin]]
+name = "spring-lsp"
+path = "src/main.rs"
+
+[lib]
+name = "spring_lsp"
+path = "src/lib.rs"
