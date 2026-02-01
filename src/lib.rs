@@ -28,5 +28,7 @@ pub mod index;
 pub mod error;
 pub mod di_validator;
 pub mod logging;
+pub mod config;
+pub mod status;
 
 pub use error::{Error, Result};

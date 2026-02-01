@@ -43,6 +43,9 @@ pub struct PropertySchema {
     /// 废弃信息（可选）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecated: Option<String>,
+    /// 示例代码（可选）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub example: Option<String>,
 }
 
 /// 类型信息
@@ -114,6 +117,7 @@ pub enum Value {
 /// Schema 提供者
 /// 
 /// 管理配置 Schema，提供配置项元数据查询和缓存
+#[derive(Clone)]
 pub struct SchemaProvider {
     /// Schema 数据（加载后不会改变，直接拥有即可）
     schema: ConfigSchema,
@@ -193,6 +197,7 @@ impl SchemaProvider {
                 default: Some(Value::String("0.0.0.0".to_string())),
                 required: false,
                 deprecated: None,
+                example: Some("host = \"0.0.0.0\"".to_string()),
             },
         );
         web_properties.insert(
@@ -207,6 +212,7 @@ impl SchemaProvider {
                 default: Some(Value::Integer(8080)),
                 required: false,
                 deprecated: None,
+                example: Some("port = 8080".to_string()),
             },
         );
         
@@ -233,6 +239,7 @@ impl SchemaProvider {
                 default: Some(Value::String("redis://localhost:6379".to_string())),
                 required: false,
                 deprecated: None,
+                example: Some("url = \"redis://localhost:6379\"".to_string()),
             },
         );
         

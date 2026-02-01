@@ -25,7 +25,7 @@ use spring_lsp::server::{LspServer, ServerState};
 /// **Validates: Requirements 1.2**
 #[test]
 fn test_basic_initialization() {
-    let server = LspServer::start().unwrap();
+    let mut server = LspServer::start().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -63,7 +63,7 @@ fn test_basic_initialization() {
 /// **Validates: Requirements 1.2**
 #[test]
 fn test_initialize_declares_all_capabilities() {
-    let server = LspServer::start().unwrap();
+    let mut server = LspServer::start().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -146,7 +146,7 @@ fn test_initialize_declares_all_capabilities() {
 /// **Validates: Requirements 1.2, 1.4**
 #[test]
 fn test_initialize_uses_incremental_sync() {
-    let server = LspServer::start().unwrap();
+    let mut server = LspServer::start().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -188,7 +188,7 @@ fn test_initialize_uses_incremental_sync() {
 /// **Validates: Requirements 1.2**
 #[test]
 fn test_initialize_without_client_info() {
-    let server = LspServer::start().unwrap();
+    let mut server = LspServer::start().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -213,7 +213,7 @@ fn test_initialize_without_client_info() {
 /// **Validates: Requirements 1.2**
 #[test]
 fn test_initialize_with_workspace_folders() {
-    let server = LspServer::start().unwrap();
+    let mut server = LspServer::start().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -345,7 +345,7 @@ fn arb_initialize_params() -> impl Strategy<Value = InitializeParams> {
 proptest! {
     #[test]
     fn prop_initialize_returns_valid_response(params in arb_initialize_params()) {
-        let server = LspServer::start().unwrap();
+        let mut server = LspServer::start().unwrap();
         let result = server.handle_initialize(params);
 
         // 属性：初始化应该总是成功
@@ -388,7 +388,7 @@ proptest! {
 proptest! {
     #[test]
     fn prop_initialize_declares_completion_triggers(params in arb_initialize_params()) {
-        let server = LspServer::start().unwrap();
+        let mut server = LspServer::start().unwrap();
         let result = server.handle_initialize(params).unwrap();
 
         let completion = result.capabilities.completion_provider.unwrap();
@@ -413,7 +413,7 @@ proptest! {
 /// **Validates: Requirements 1.2**
 #[test]
 fn test_initialize_with_empty_capabilities() {
-    let server = LspServer::start().unwrap();
+    let mut server = LspServer::start().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -447,7 +447,7 @@ fn test_initialize_with_empty_capabilities() {
 /// **Validates: Requirements 1.2**
 #[test]
 fn test_initialize_with_very_long_client_name() {
-    let server = LspServer::start().unwrap();
+    let mut server = LspServer::start().unwrap();
 
     let long_name = "a".repeat(10000);
 
@@ -480,7 +480,7 @@ fn test_initialize_with_very_long_client_name() {
 /// **Validates: Requirements 1.2**
 #[test]
 fn test_initialize_with_invalid_root_uri() {
-    let server = LspServer::start().unwrap();
+    let mut server = LspServer::start().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -518,8 +518,10 @@ fn test_concurrent_initialization() {
 
     let handles: Vec<_> = (0..10)
         .map(|i| {
-            let server = Arc::clone(&server);
             thread::spawn(move || {
+                // 每个线程创建自己的服务器实例
+                let mut server = LspServer::start().unwrap();
+                
                 #[allow(deprecated)]
                 let params = InitializeParams {
                     process_id: Some(i),
@@ -704,7 +706,7 @@ fn test_multiple_shutdowns_are_idempotent() {
 fn test_initialization_performance() {
     use std::time::Instant;
 
-    let server = LspServer::start().unwrap();
+    let mut server = LspServer::start().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {

@@ -77,6 +77,10 @@ pub enum Error {
     #[error("Schema load error: {0}")]
     SchemaLoad(String),
 
+    /// 配置错误
+    #[error("Configuration error: {0}")]
+    Config(String),
+
     /// 文件 I/O 错误
     #[error("File I/O error: {0}")]
     Io(#[from] std::io::Error),
@@ -112,6 +116,7 @@ impl Error {
             | Error::RouteValidation { .. }
             | Error::DiValidation { .. } => ErrorCategory::Validation,
             Error::SchemaLoad(_)
+            | Error::Config(_)
             | Error::Io(_)
             | Error::Json(_)
             | Error::Http(_)
@@ -137,6 +142,7 @@ impl Error {
 
             // 系统错误部分可恢复
             Error::SchemaLoad(_) => true, // 可以使用备用 Schema
+            Error::Config(_) => false,    // 配置错误不可恢复
             Error::Http(_) => true,       // 可以使用缓存
             Error::IndexBuild(_) => true, // 可以跳过索引构建
             Error::Io(_) => false,        // I/O 错误通常不可恢复
@@ -163,6 +169,7 @@ impl Error {
 
             // 系统错误根据类型判断
             Error::SchemaLoad(_) => ErrorSeverity::Warning, // 可以使用备用 Schema
+            Error::Config(_) => ErrorSeverity::Error,       // 配置错误是严重的
             Error::Http(_) => ErrorSeverity::Warning,       // 可以使用缓存
             Error::IndexBuild(_) => ErrorSeverity::Warning, // 可以跳过索引
             Error::Io(_) => ErrorSeverity::Error,           // I/O 错误是严重的

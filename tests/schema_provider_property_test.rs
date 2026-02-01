@@ -81,6 +81,7 @@ fn property_schema() -> impl Strategy<Value = PropertySchema> {
                 default,
                 required,
                 deprecated,
+                example: None,
             }
         })
 }

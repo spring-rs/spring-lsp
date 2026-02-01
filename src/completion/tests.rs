@@ -1164,6 +1164,7 @@ mod property_tests {
                         default: None,
                         required: false,
                         deprecated: None,
+                        example: None,
                     },
                 );
             }
@@ -1346,6 +1347,7 @@ mod property_tests {
                         default: None,
                         required: false,
                         deprecated: None,
+                        example: None,
                     },
                 );
             }
@@ -1431,6 +1433,7 @@ mod property_tests {
                         default: None,
                         required: false,
                         deprecated: None,
+                        example: None,
                     },
                 );
             }

@@ -69,6 +69,7 @@ fn property_schema() -> impl Strategy<Value = (String, PropertySchema)> {
                 default: None,
                 required,
                 deprecated: None,
+                example: None,
             };
             (name, schema)
         })
@@ -236,6 +237,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+                example: None,
             },
         );
         

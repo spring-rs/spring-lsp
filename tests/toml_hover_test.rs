@@ -24,6 +24,7 @@ fn create_test_schema_provider() -> SchemaProvider {
             default: Some(Value::String("localhost".to_string())),
             required: false,
             deprecated: None,
+            example: Some("host = \"0.0.0.0\"".to_string()),
         },
     );
     web_properties.insert(
@@ -38,6 +39,7 @@ fn create_test_schema_provider() -> SchemaProvider {
             default: Some(Value::Integer(8080)),
             required: true,
             deprecated: None,
+            example: Some("port = 8080".to_string()),
         },
     );
     web_properties.insert(
@@ -53,6 +55,7 @@ fn create_test_schema_provider() -> SchemaProvider {
             default: None,
             required: false,
             deprecated: Some("请使用 new_setting 代替".to_string()),
+            example: None,
         },
     );
     
@@ -83,6 +86,7 @@ fn create_test_schema_provider() -> SchemaProvider {
             default: Some(Value::String("standalone".to_string())),
             required: false,
             deprecated: None,
+            example: Some("mode = \"standalone\"".to_string()),
         },
     );
     
@@ -459,5 +463,192 @@ port = 8080
         assert!(text.contains("---"), "应该包含分隔线");
     } else {
         panic!("应该返回 Markup 格式");
+    }
+}
+
+#[test]
+fn test_hover_with_example_code() {
+    let schema_provider = create_test_schema_provider();
+    let analyzer = TomlAnalyzer::new(schema_provider);
+    
+    let toml_content = r#"
+[web]
+host = "localhost"
+port = 8080
+"#;
+    
+    let doc = analyzer.parse(toml_content).unwrap();
+    
+    // 悬停在 host 配置项上（在值的范围内）
+    let position = Position {
+        line: 2,
+        character: 10,  // 在 "localhost" 的范围内
+    };
+    
+    let hover = analyzer.hover(&doc, position);
+    assert!(hover.is_some(), "应该返回悬停提示");
+    
+    let hover = hover.unwrap();
+    if let lsp_types::HoverContents::Markup(content) = hover.contents {
+        let text = content.value;
+        
+        // 验证包含示例代码
+        assert!(text.contains("示例"), "应该包含示例标题");
+        assert!(text.contains("```toml"), "应该包含 TOML 代码块开始标记");
+        assert!(text.contains("host = \"0.0.0.0\""), "应该包含示例代码内容");
+        assert!(text.contains("```"), "应该包含代码块结束标记");
+        
+        // 验证示例代码在废弃警告之前（如果有的话）
+        let example_pos = text.find("示例").unwrap();
+        if let Some(deprecated_pos) = text.find("已废弃") {
+            assert!(example_pos < deprecated_pos, "示例应该在废弃警告之前");
+        }
+    } else {
+        panic!("悬停内容应该是 Markup 格式");
+    }
+}
+
+#[test]
+fn test_hover_without_example_code() {
+    let schema_provider = create_test_schema_provider();
+    let analyzer = TomlAnalyzer::new(schema_provider);
+    
+    let toml_content = r#"
+[web]
+old_setting = "value"
+"#;
+    
+    let doc = analyzer.parse(toml_content).unwrap();
+    
+    // 悬停在 old_setting 配置项上（没有示例代码）
+    let position = Position {
+        line: 2,
+        character: 18,  // 在 "value" 的范围内
+    };
+    
+    let hover = analyzer.hover(&doc, position);
+    assert!(hover.is_some(), "应该返回悬停提示");
+    
+    let hover = hover.unwrap();
+    if let lsp_types::HoverContents::Markup(content) = hover.contents {
+        let text = content.value;
+        
+        // 验证不包含示例代码
+        assert!(!text.contains("示例"), "不应该包含示例标题");
+        assert!(!text.contains("```toml"), "不应该包含 TOML 代码块");
+    } else {
+        panic!("悬停内容应该是 Markup 格式");
+    }
+}
+
+#[test]
+fn test_hover_example_code_formatting() {
+    let schema_provider = create_test_schema_provider();
+    let analyzer = TomlAnalyzer::new(schema_provider);
+    
+    let toml_content = r#"
+[redis]
+mode = "cluster"
+"#;
+    
+    let doc = analyzer.parse(toml_content).unwrap();
+    
+    // 悬停在 mode 配置项上
+    let position = Position {
+        line: 2,
+        character: 10,  // 在 "cluster" 的范围内
+    };
+    
+    let hover = analyzer.hover(&doc, position);
+    assert!(hover.is_some(), "应该返回悬停提示");
+    
+    let hover = hover.unwrap();
+    if let lsp_types::HoverContents::Markup(content) = hover.contents {
+        let text = content.value;
+        
+        // 验证示例代码格式化正确
+        assert!(text.contains("**示例**:"), "应该有示例标题");
+        
+        // 验证代码块格式
+        let code_block_start = text.find("```toml\n");
+        let code_block_end = text.rfind("\n```");
+        
+        assert!(code_block_start.is_some(), "应该有代码块开始标记");
+        assert!(code_block_end.is_some(), "应该有代码块结束标记");
+        
+        if let (Some(start), Some(end)) = (code_block_start, code_block_end) {
+            assert!(start < end, "代码块开始应该在结束之前");
+            
+            // 提取代码块内容
+            let code_content = &text[start + 8..end];  // 8 = "```toml\n".len()
+            assert!(code_content.contains("mode = \"standalone\""), "应该包含示例代码");
+        }
+    } else {
+        panic!("悬停内容应该是 Markup 格式");
+    }
+}
+
+#[test]
+fn test_hover_example_with_multiline_code() {
+    // 创建一个包含多行示例的 Schema
+    let mut plugins = HashMap::new();
+    let mut web_properties = HashMap::new();
+    
+    web_properties.insert(
+        "cors".to_string(),
+        PropertySchema {
+            name: "cors".to_string(),
+            type_info: TypeInfo::String {
+                enum_values: None,
+                min_length: None,
+                max_length: None,
+            },
+            description: "CORS 配置".to_string(),
+            default: None,
+            required: false,
+            deprecated: None,
+            example: Some("[web.cors]\nallow_origins = [\"*\"]\nallow_methods = [\"GET\", \"POST\"]".to_string()),
+        },
+    );
+    
+    plugins.insert(
+        "web".to_string(),
+        PluginSchema {
+            prefix: "web".to_string(),
+            properties: web_properties,
+        },
+    );
+    
+    let schema = ConfigSchema { plugins };
+    let schema_provider = SchemaProvider::from_schema(schema);
+    let analyzer = TomlAnalyzer::new(schema_provider);
+    
+    let toml_content = r#"
+[web]
+cors = "enabled"
+"#;
+    
+    let doc = analyzer.parse(toml_content).unwrap();
+    
+    // 悬停在 cors 配置项上
+    let position = Position {
+        line: 2,
+        character: 10,
+    };
+    
+    let hover = analyzer.hover(&doc, position);
+    assert!(hover.is_some(), "应该返回悬停提示");
+    
+    let hover = hover.unwrap();
+    if let lsp_types::HoverContents::Markup(content) = hover.contents {
+        let text = content.value;
+        
+        // 验证多行示例代码正确显示
+        assert!(text.contains("示例"), "应该包含示例标题");
+        assert!(text.contains("```toml"), "应该包含代码块标记");
+        assert!(text.contains("allow_origins"), "应该包含多行示例的第一行");
+        assert!(text.contains("allow_methods"), "应该包含多行示例的第二行");
+    } else {
+        panic!("悬停内容应该是 Markup 格式");
     }
 }

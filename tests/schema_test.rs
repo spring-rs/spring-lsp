@@ -22,6 +22,7 @@ fn test_config_schema_serialization() {
             default: Some(Value::String("localhost".to_string())),
             required: false,
             deprecated: None,
+            example: None,
         },
     );
     
@@ -37,6 +38,7 @@ fn test_config_schema_serialization() {
             default: Some(Value::Integer(8080)),
             required: true,
             deprecated: None,
+            example: None,
         },
     );
     
@@ -90,6 +92,7 @@ fn test_plugin_schema_clone() {
             default: Some(Value::Boolean(true)),
             required: false,
             deprecated: None,
+            example: None,
         },
     );
     
@@ -120,6 +123,7 @@ fn test_property_schema_clone() {
         default: Some(Value::Integer(30)),
         required: false,
         deprecated: Some("使用 timeout_ms 代替".to_string()),
+        example: None,
     };
     
     // 克隆
@@ -274,6 +278,7 @@ fn test_nested_object_type() {
             default: None,
             required: false,
             deprecated: None,
+            example: None,
         },
     );
     
@@ -307,6 +312,7 @@ fn test_deprecated_property() {
         default: None,
         required: false,
         deprecated: Some("请使用 new_config 代替".to_string()),
+        example: None,
     };
     
     // 序列化

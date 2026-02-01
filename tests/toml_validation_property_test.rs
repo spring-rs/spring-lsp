@@ -115,6 +115,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -209,6 +210,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -260,6 +262,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -319,6 +322,7 @@ proptest! {
                 default: None,
                 required: true,  // 标记为必需
                 deprecated: None,
+            example: None,
             },
         );
         properties.insert(
@@ -334,6 +338,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -385,6 +390,7 @@ proptest! {
                 default: None,
                 required: true,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -440,6 +446,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: Some(deprecation_msg.clone()),  // 标记为废弃
+                example: None,
             },
         );
         
@@ -496,6 +503,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -547,6 +555,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -598,6 +607,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -655,6 +665,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -708,6 +719,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -762,6 +774,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -815,6 +828,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -870,6 +884,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -928,6 +943,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -982,6 +998,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         
@@ -1034,6 +1051,7 @@ proptest! {
                 default: None,
                 required: false,
                 deprecated: None,
+            example: None,
             },
         );
         

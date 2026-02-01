@@ -286,6 +286,14 @@ impl TomlAnalyzer {
             _ => {}
         }
         
+        // 添加示例代码（如果有）
+        if let Some(example) = &schema.example {
+            hover_text.push_str("**示例**:\n\n");
+            hover_text.push_str("```toml\n");
+            hover_text.push_str(example);
+            hover_text.push_str("\n```\n\n");
+        }
+        
         // 添加废弃警告（如果有）
         if let Some(deprecated_msg) = &schema.deprecated {
             hover_text.push_str(&format!("⚠️ **已废弃**: {}\n\n", deprecated_msg));

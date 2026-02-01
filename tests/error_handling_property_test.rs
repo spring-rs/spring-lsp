@@ -428,7 +428,8 @@ proptest! {
             }
             Error::ConfigValidation { .. }
             | Error::RouteValidation { .. }
-            | Error::DiValidation { .. } => {
+            | Error::DiValidation { .. }
+            | Error::Config(_) => {
                 prop_assert_eq!(category, ErrorCategory::Validation,
                     "Validation errors should be Validation category");
             }
@@ -580,7 +581,8 @@ proptest! {
             // 验证错误可恢复（不影响服务器运行）
             Error::ConfigValidation { .. }
             | Error::RouteValidation { .. }
-            | Error::DiValidation { .. } => {
+            | Error::DiValidation { .. }
+            | Error::Config(_) => {
                 prop_assert!(is_recoverable,
                     "Validation errors should be recoverable");
             }

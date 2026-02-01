@@ -42,15 +42,26 @@
 //!
 //! 本实现遵循 LSP 3.17 规范。
 
+use crate::completion::CompletionEngine;
+use crate::diagnostic::DiagnosticEngine;
 use crate::document::DocumentManager;
 use crate::error::{ErrorHandler, RecoveryAction};
+use crate::index::IndexManager;
+use crate::macro_analyzer::MacroAnalyzer;
+use crate::route::RouteNavigator;
+use crate::schema::SchemaProvider;
+use crate::toml_analyzer::TomlAnalyzer;
+use crate::config::ServerConfig;
+use crate::status::ServerStatus;
 use crate::{Error, Result};
 use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
     notification::{
         DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Exit, Notification as _,
     },
-    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    request::{Completion, GotoDefinition, HoverRequest, Request as _},
+    CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
     InitializeParams, InitializeResult, ServerCapabilities, ServerInfo,
 };
 use std::sync::Arc;
@@ -76,6 +87,24 @@ pub struct LspServer {
     pub document_manager: Arc<DocumentManager>,
     /// 错误处理器
     error_handler: ErrorHandler,
+    /// 服务器配置
+    pub config: ServerConfig,
+    /// 服务器状态跟踪器
+    pub status: ServerStatus,
+    /// Schema 提供者
+    pub schema_provider: Arc<SchemaProvider>,
+    /// TOML 分析器
+    pub toml_analyzer: Arc<TomlAnalyzer>,
+    /// 宏分析器
+    pub macro_analyzer: Arc<MacroAnalyzer>,
+    /// 路由导航器
+    pub route_navigator: Arc<RouteNavigator>,
+    /// 补全引擎
+    pub completion_engine: Arc<CompletionEngine>,
+    /// 诊断引擎
+    pub diagnostic_engine: Arc<DiagnosticEngine>,
+    /// 索引管理器
+    pub index_manager: Arc<IndexManager>,
 }
 
 impl LspServer {
@@ -88,16 +117,60 @@ impl LspServer {
         // 通过标准输入输出创建 LSP 连接
         let (connection, _io_threads) = Connection::stdio();
 
-        // 从环境变量读取是否启用详细日志
-        let verbose = std::env::var("SPRING_LSP_VERBOSE")
-            .map(|v| v == "1" || v.to_lowercase() == "true")
-            .unwrap_or(false);
+        // 加载默认配置（在初始化时会从客户端获取工作空间路径并重新加载）
+        let config = ServerConfig::load(None);
+
+        // 验证配置
+        if let Err(e) = config.validate() {
+            tracing::error!("Invalid configuration: {}", e);
+            return Err(Error::Config(e));
+        }
+
+        // 从配置读取是否启用详细日志
+        let verbose = config.logging.verbose;
+
+        // 初始化所有组件
+        tracing::info!("Initializing components...");
+
+        // 1. Schema 提供者（使用同步方式初始化，异步加载在后台进行）
+        let schema_provider = Arc::new(SchemaProvider::new());
+
+        // 2. TOML 分析器
+        let toml_analyzer = Arc::new(TomlAnalyzer::new((*schema_provider).clone()));
+
+        // 3. 宏分析器
+        let macro_analyzer = Arc::new(MacroAnalyzer::new());
+
+        // 4. 路由导航器
+        let route_navigator = Arc::new(RouteNavigator::new());
+
+        // 5. 补全引擎
+        let completion_engine = Arc::new(CompletionEngine::new(
+            (*schema_provider).clone(),
+        ));
+
+        // 6. 诊断引擎
+        let diagnostic_engine = Arc::new(DiagnosticEngine::new());
+
+        // 7. 索引管理器
+        let index_manager = Arc::new(IndexManager::new());
+
+        tracing::info!("All components initialized successfully");
 
         Ok(Self {
             connection,
             state: ServerState::Uninitialized,
             document_manager: Arc::new(DocumentManager::new()),
             error_handler: ErrorHandler::new(verbose),
+            config,
+            status: ServerStatus::new(),
+            schema_provider,
+            toml_analyzer,
+            macro_analyzer,
+            route_navigator,
+            completion_engine,
+            diagnostic_engine,
+            index_manager,
         })
     }
 
@@ -181,6 +254,9 @@ impl LspServer {
 
             // 处理消息，捕获错误以保持服务器运行
             if let Err(e) = self.handle_message(msg) {
+                // 记录错误
+                self.status.record_error();
+                
                 let result = self.error_handler.handle(&e);
 
                 // 根据恢复策略决定是否继续
@@ -226,6 +302,9 @@ impl LspServer {
     fn handle_request(&mut self, req: Request) -> Result<()> {
         tracing::debug!("Received request: {} (id: {:?})", req.method, req.id);
 
+        // 记录请求
+        self.status.record_request();
+
         // 处理关闭请求
         if self.connection.handle_shutdown(&req)? {
             tracing::info!("Received shutdown request");
@@ -235,10 +314,14 @@ impl LspServer {
 
         // 根据请求方法分发
         match req.method.as_str() {
-            // TODO: 添加其他请求处理器
-            // Completion::METHOD => self.handle_completion(req),
-            // Hover::METHOD => self.handle_hover(req),
-            // GotoDefinition::METHOD => self.handle_goto_definition(req),
+            // 智能补全请求
+            Completion::METHOD => self.handle_completion(req),
+            // 悬停提示请求
+            HoverRequest::METHOD => self.handle_hover(req),
+            // 定义跳转请求
+            GotoDefinition::METHOD => self.handle_goto_definition(req),
+            // 状态查询请求
+            "spring-lsp/status" => self.handle_status_query(req),
             _ => {
                 tracing::warn!("Unhandled request method: {}", req.method);
                 // 返回方法未实现错误
@@ -246,9 +329,9 @@ impl LspServer {
                     req.id,
                     lsp_server::ErrorCode::MethodNotFound as i32,
                     format!("Method not found: {}", req.method),
-                )?;
+                )
             }
-        }
+        }?;
 
         Ok(())
     }
@@ -291,16 +374,20 @@ impl LspServer {
             doc.uri.clone(),
             doc.version,
             doc.text,
-            doc.language_id,
+            doc.language_id.clone(),
         );
 
-        // TODO: 触发文档分析和诊断
+        // 更新状态
+        self.status.increment_document_count();
+
+        // 触发文档分析和诊断
+        self.analyze_document(&doc.uri, &doc.language_id)?;
 
         Ok(())
     }
 
     /// 处理文档修改通知
-    fn handle_did_change(&mut self, params: DidChangeTextDocumentParams) -> Result<()> {
+    pub fn handle_did_change(&mut self, params: DidChangeTextDocumentParams) -> Result<()> {
         let uri = params.text_document.uri;
         let version = params.text_document.version;
         tracing::debug!("Document changed: {} (version: {})", uri, version);
@@ -308,19 +395,237 @@ impl LspServer {
         self.document_manager
             .change(&uri, version, params.content_changes);
 
-        // TODO: 触发增量分析和诊断
+        // 触发增量分析和诊断
+        if let Some(doc) = self.document_manager.get(&uri) {
+            self.analyze_document(&uri, &doc.language_id)?;
+        }
 
         Ok(())
     }
 
     /// 处理文档关闭通知
-    fn handle_did_close(&mut self, params: DidCloseTextDocumentParams) -> Result<()> {
+    pub fn handle_did_close(&mut self, params: DidCloseTextDocumentParams) -> Result<()> {
         let uri = params.text_document.uri;
         tracing::info!("Document closed: {}", uri);
 
         self.document_manager.close(&uri);
 
-        // TODO: 清理相关的诊断和缓存
+        // 更新状态
+        self.status.decrement_document_count();
+
+        // 清理相关的诊断和缓存
+        self.diagnostic_engine.clear(&uri);
+        self.diagnostic_engine.publish(&self.connection, &uri);
+
+        Ok(())
+    }
+
+    /// 处理智能补全请求
+    fn handle_completion(&mut self, req: Request) -> Result<()> {
+        tracing::debug!("Handling completion request");
+
+        let params: CompletionParams = serde_json::from_value(req.params)?;
+        self.status.record_completion();
+
+        let response = self.document_manager.with_document(&params.text_document_position.text_document.uri, |doc| {
+            // 根据文件类型选择补全策略
+            match doc.language_id.as_str() {
+                "toml" => {
+                    if let Ok(toml_doc) = self.toml_analyzer.parse(&doc.content) {
+                        self.completion_engine.complete_toml_document(&toml_doc, params.text_document_position.position)
+                    } else {
+                        vec![]
+                    }
+                }
+                "rust" => {
+                    // TODO: 实现 Rust 补全
+                    vec![]
+                }
+                _ => vec![]
+            }
+        });
+
+        let result = match response {
+            Some(completions) => serde_json::to_value(CompletionResponse::Array(completions))?,
+            None => serde_json::Value::Null,
+        };
+
+        let response = Response {
+            id: req.id,
+            result: Some(result),
+            error: None,
+        };
+
+        self.connection
+            .sender
+            .send(Message::Response(response))
+            .map_err(|e| Error::MessageSend(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// 处理悬停提示请求
+    fn handle_hover(&mut self, req: Request) -> Result<()> {
+        tracing::debug!("Handling hover request");
+
+        let params: HoverParams = serde_json::from_value(req.params)?;
+        self.status.record_hover();
+
+        let response = self.document_manager.with_document(&params.text_document_position_params.text_document.uri, |doc| {
+            // 根据文件类型选择分析器
+            match doc.language_id.as_str() {
+                "toml" => {
+                    if let Ok(toml_doc) = self.toml_analyzer.parse(&doc.content) {
+                        self.toml_analyzer.hover(&toml_doc, params.text_document_position_params.position)
+                    } else {
+                        None
+                    }
+                }
+                "rust" => {
+                    // TODO: 实现 Rust 悬停提示
+                    None
+                }
+                _ => None,
+            }
+        });
+
+        let result = match response {
+            Some(Some(hover)) => serde_json::to_value(hover)?,
+            _ => serde_json::Value::Null,
+        };
+
+        let response = Response {
+            id: req.id,
+            result: Some(result),
+            error: None,
+        };
+
+        self.connection
+            .sender
+            .send(Message::Response(response))
+            .map_err(|e| Error::MessageSend(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// 处理定义跳转请求
+    fn handle_goto_definition(&mut self, req: Request) -> Result<()> {
+        tracing::debug!("Handling goto definition request");
+
+        let _params: GotoDefinitionParams = serde_json::from_value(req.params)?;
+
+        // TODO: 实现定义跳转逻辑
+        let result = GotoDefinitionResponse::Array(vec![]);
+
+        let response = Response {
+            id: req.id,
+            result: Some(serde_json::to_value(result)?),
+            error: None,
+        };
+
+        self.connection
+            .sender
+            .send(Message::Response(response))
+            .map_err(|e| Error::MessageSend(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// 分析文档并生成诊断
+    pub fn analyze_document(&mut self, uri: &lsp_types::Url, language_id: &str) -> Result<()> {
+        tracing::debug!("Analyzing document: {} ({})", uri, language_id);
+
+        // 清除旧的诊断
+        self.diagnostic_engine.clear(uri);
+
+        let diagnostics = self.document_manager.with_document(uri, |doc| {
+            match language_id {
+                "toml" => {
+                    // TOML 文档分析
+                    match self.toml_analyzer.parse(&doc.content) {
+                        Ok(toml_doc) => {
+                            let mut diagnostics = Vec::new();
+
+                            // 配置验证
+                            let validation_diagnostics = self.toml_analyzer.validate(&toml_doc);
+                            diagnostics.extend(validation_diagnostics);
+
+                            diagnostics
+                        }
+                        Err(_e) => {
+                            // 解析错误
+                            vec![lsp_types::Diagnostic {
+                                range: lsp_types::Range {
+                                    start: lsp_types::Position { line: 0, character: 0 },
+                                    end: lsp_types::Position { line: 0, character: 0 },
+                                },
+                                severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                                code: Some(lsp_types::NumberOrString::String("parse_error".to_string())),
+                                code_description: None,
+                                source: Some("spring-lsp".to_string()),
+                                message: "TOML parse error".to_string(),
+                                related_information: None,
+                                tags: None,
+                                data: None,
+                            }]
+                        }
+                    }
+                }
+                "rust" => {
+                    // Rust 文档分析
+                    // TODO: 实现完整的 Rust 分析
+                    vec![]
+                }
+                _ => {
+                    tracing::debug!("Unsupported language: {}", language_id);
+                    vec![]
+                }
+            }
+        }).unwrap_or_default();
+
+        // 过滤被禁用的诊断
+        let filtered_diagnostics: Vec<_> = diagnostics
+            .into_iter()
+            .filter(|diag| {
+                if let Some(lsp_types::NumberOrString::String(code)) = &diag.code {
+                    !self.config.diagnostics.is_disabled(code)
+                } else {
+                    true
+                }
+            })
+            .collect();
+
+        // 添加诊断
+        for diagnostic in filtered_diagnostics {
+            self.diagnostic_engine.add(uri.clone(), diagnostic);
+        }
+
+        // 发布诊断
+        self.diagnostic_engine.publish(&self.connection, uri);
+        self.status.record_diagnostic();
+
+        Ok(())
+    }
+
+    /// 处理状态查询请求
+    ///
+    /// 返回服务器的运行状态和性能指标
+    fn handle_status_query(&self, req: Request) -> Result<()> {
+        tracing::debug!("Handling status query request");
+
+        let metrics = self.status.get_metrics();
+        let result = serde_json::to_value(metrics)?;
+
+        let response = Response {
+            id: req.id,
+            result: Some(result),
+            error: None,
+        };
+
+        self.connection
+            .sender
+            .send(Message::Response(response))
+            .map_err(|e| Error::MessageSend(e.to_string()))?;
 
         Ok(())
     }
@@ -334,11 +639,30 @@ impl LspServer {
     /// - 诊断（配置验证、路由验证、依赖注入验证）
     /// - 定义跳转（路由导航）
     /// - 文档符号（路由列表）
-    pub fn handle_initialize(&self, _params: InitializeParams) -> Result<InitializeResult> {
+    pub fn handle_initialize(&mut self, params: InitializeParams) -> Result<InitializeResult> {
         use lsp_types::{
             CompletionOptions, HoverProviderCapability, OneOf, TextDocumentSyncCapability,
             TextDocumentSyncKind, TextDocumentSyncOptions, WorkDoneProgressOptions,
         };
+
+        // 如果客户端提供了工作空间路径，重新加载配置
+        if let Some(root_uri) = params.root_uri {
+            if let Ok(workspace_path) = root_uri.to_file_path() {
+                tracing::info!("Loading configuration from workspace: {}", workspace_path.display());
+                self.config = ServerConfig::load(Some(&workspace_path));
+                
+                // 验证配置
+                if let Err(e) = self.config.validate() {
+                    tracing::error!("Invalid configuration: {}", e);
+                    return Err(Error::Config(e));
+                }
+                
+                tracing::info!("Configuration loaded successfully");
+                tracing::debug!("Trigger characters: {:?}", self.config.completion.trigger_characters);
+                tracing::debug!("Schema URL: {}", self.config.schema.url);
+                tracing::debug!("Disabled diagnostics: {:?}", self.config.diagnostics.disabled);
+            }
+        }
 
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
@@ -355,16 +679,10 @@ impl LspServer {
 
                 // 智能补全能力
                 // 支持 TOML 配置项、宏参数、环境变量补全
+                // 使用配置文件中的触发字符
                 completion_provider: Some(CompletionOptions {
                     resolve_provider: Some(true),
-                    trigger_characters: Some(vec![
-                        "[".to_string(),  // TOML 配置节
-                        ".".to_string(),  // 嵌套配置项
-                        "$".to_string(),  // 环境变量
-                        "{".to_string(),  // 环境变量插值
-                        "#".to_string(),  // 宏属性
-                        "(".to_string(),  // 宏参数
-                    ]),
+                    trigger_characters: Some(self.config.completion.trigger_characters.clone()),
                     all_commit_characters: None,
                     work_done_progress_options: WorkDoneProgressOptions {
                         work_done_progress: None,
@@ -464,7 +782,15 @@ impl LspServer {
         tracing::info!("Shutting down spring-lsp server");
 
         // 清理资源
-        // TODO: 清理所有缓存、索引等资源
+        tracing::debug!("Clearing all diagnostics...");
+        // TODO: 清理所有文档的诊断
+        // 需要实现 DocumentManager::get_all_uris() 方法
+
+        tracing::debug!("Clearing document cache...");
+        // 清理文档缓存（DocumentManager 会自动清理）
+
+        tracing::debug!("Clearing indexes...");
+        // 索引管理器会自动清理
 
         tracing::info!("Server shutdown complete");
         Ok(())
@@ -594,7 +920,7 @@ mod tests {
     /// 测试初始化响应
     #[test]
     fn test_initialize_response() {
-        let server = LspServer::start().unwrap();
+        let mut server = LspServer::start().unwrap();
 
         #[allow(deprecated)]
         let params = InitializeParams {

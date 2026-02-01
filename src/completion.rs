@@ -79,7 +79,27 @@ impl CompletionEngine {
         }
     }
     
-    /// TOML 配置补全
+    /// TOML 配置补全（公共方法）
+    /// 
+    /// 为 TOML 配置文件提供补全，支持：
+    /// - 配置前缀补全（在 `[` 后）
+    /// - 配置项补全（在配置节内）
+    /// - 枚举值补全
+    /// - 环境变量补全（在 `${` 后）
+    /// 
+    /// # 参数
+    /// 
+    /// * `doc` - TOML 文档
+    /// * `position` - 光标位置
+    /// 
+    /// # 返回
+    /// 
+    /// 补全项列表
+    pub fn complete_toml_document(&self, doc: &TomlDocument, position: Position) -> Vec<CompletionItem> {
+        self.complete_toml(doc, position)
+    }
+
+    /// TOML 配置补全（内部方法）
     /// 
     /// 为 TOML 配置文件提供补全，支持：
     /// - 配置前缀补全（在 `[` 后）
@@ -309,7 +329,7 @@ impl CompletionEngine {
     /// 补全环境变量
     /// 
     /// 提供常见的环境变量名称补全
-    fn complete_env_var(&self) -> Vec<CompletionItem> {
+    pub fn complete_env_var(&self) -> Vec<CompletionItem> {
         let common_vars = vec![
             ("HOST", "主机地址"),
             ("PORT", "端口号"),

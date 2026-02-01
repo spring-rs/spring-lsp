@@ -1,0 +1,56 @@
+# spring-lsp 配置文件示例
+# 
+# 此文件可以放置在：
+# 1. 工作空间根目录：.spring-lsp.toml
+# 2. 用户配置目录：~/.config/spring-lsp/config.toml
+#
+# 环境变量会覆盖配置文件中的设置
+
+# 日志配置
+[logging]
+# 日志级别：trace, debug, info, warn, error
+level = "info"
+
+# 是否启用详细模式（显示更多调试信息）
+verbose = false
+
+# 日志文件路径（可选）
+# 如果不设置，日志只输出到 stderr
+# log_file = "/tmp/spring-lsp.log"
+
+# 补全配置
+[completion]
+# 触发补全的字符列表
+# 默认值：["[", ".", "$", "{", "#", "("]
+trigger_characters = [
+    "[",  # TOML 配置节
+    ".",  # 嵌套配置项
+    "$",  # 环境变量
+    "{",  # 环境变量插值
+    "#",  # 宏属性
+    "(",  # 宏参数
+]
+
+# 诊断配置
+[diagnostics]
+# 禁用特定类型的诊断
+# 可用的诊断类型：
+# - "deprecated_warning": 废弃配置项警告
+# - "restful_style": RESTful 风格建议
+# - "type_mismatch": 类型不匹配错误
+# - "missing_required": 缺少必需配置项警告
+# - "route_conflict": 路由冲突警告
+# - "circular_dependency": 循环依赖警告
+disabled = []
+
+# 示例：禁用 RESTful 风格检查
+# disabled = ["restful_style"]
+
+# Schema 配置
+[schema]
+# Schema URL（HTTP URL 或 file:// URL）
+# 默认值：https://spring-rs.github.io/config-schema.json
+url = "https://spring-rs.github.io/config-schema.json"
+
+# 使用本地 Schema 文件的示例：
+# url = "file:///path/to/custom-schema.json"

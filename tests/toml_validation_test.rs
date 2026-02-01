@@ -25,6 +25,7 @@ fn create_test_schema() -> ConfigSchema {
             default: None,
             required: false,
             deprecated: None,
+            example: None,
         },
     );
     web_properties.insert(
@@ -39,6 +40,7 @@ fn create_test_schema() -> ConfigSchema {
             default: None,
             required: true,
             deprecated: None,
+            example: None,
         },
     );
     web_properties.insert(
@@ -54,6 +56,7 @@ fn create_test_schema() -> ConfigSchema {
             default: None,
             required: false,
             deprecated: Some("请使用 new_config 代替".to_string()),
+            example: None,
         },
     );
     web_properties.insert(
@@ -69,6 +72,7 @@ fn create_test_schema() -> ConfigSchema {
             default: None,
             required: false,
             deprecated: None,
+            example: None,
         },
     );
     
