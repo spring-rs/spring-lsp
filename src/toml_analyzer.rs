@@ -258,7 +258,7 @@ impl TomlAnalyzer {
             for val in enum_vals {
                 hover_text.push_str(&format!("- `{}`\n", val));
             }
-            hover_text.push_str("\n");
+            hover_text.push('\n');
         }
 
         // 添加范围限制（如果有）
@@ -272,7 +272,7 @@ impl TomlAnalyzer {
                     if let Some(max_val) = max {
                         hover_text.push_str(&format!("- 最大值: `{}`\n", max_val));
                     }
-                    hover_text.push_str("\n");
+                    hover_text.push('\n');
                 }
             }
             TypeInfo::Float { min, max } => {
@@ -284,7 +284,7 @@ impl TomlAnalyzer {
                     if let Some(max_val) = max {
                         hover_text.push_str(&format!("- 最大值: `{}`\n", max_val));
                     }
-                    hover_text.push_str("\n");
+                    hover_text.push('\n');
                 }
             }
             TypeInfo::String {
@@ -300,7 +300,7 @@ impl TomlAnalyzer {
                     if let Some(max_len) = max_length {
                         hover_text.push_str(&format!("- 最大长度: `{}`\n", max_len));
                     }
-                    hover_text.push_str("\n");
+                    hover_text.push('\n');
                 }
             }
             _ => {}
@@ -588,15 +588,15 @@ impl TomlAnalyzer {
     ) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
 
-        let type_matches = match (&property.value, &schema.type_info) {
-            (ConfigValue::String(_), TypeInfo::String { .. }) => true,
-            (ConfigValue::Integer(_), TypeInfo::Integer { .. }) => true,
-            (ConfigValue::Float(_), TypeInfo::Float { .. }) => true,
-            (ConfigValue::Boolean(_), TypeInfo::Boolean) => true,
-            (ConfigValue::Array(_), TypeInfo::Array { .. }) => true,
-            (ConfigValue::Table(_), TypeInfo::Object { .. }) => true,
-            _ => false,
-        };
+        let type_matches = matches!(
+            (&property.value, &schema.type_info),
+            (ConfigValue::String(_), TypeInfo::String { .. })
+                | (ConfigValue::Integer(_), TypeInfo::Integer { .. })
+                | (ConfigValue::Float(_), TypeInfo::Float { .. })
+                | (ConfigValue::Boolean(_), TypeInfo::Boolean)
+                | (ConfigValue::Array(_), TypeInfo::Array { .. })
+                | (ConfigValue::Table(_), TypeInfo::Object { .. })
+        );
 
         if !type_matches {
             let expected_type = self.type_info_to_string(&schema.type_info);

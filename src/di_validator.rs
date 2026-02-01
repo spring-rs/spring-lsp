@@ -465,6 +465,7 @@ impl DependencyInjectionValidator {
 /// 服务信息
 struct ServiceInfo {
     /// 服务名称
+    #[allow(dead_code)]
     name: String,
     /// 字段列表
     fields: Vec<FieldInfo>,
@@ -475,6 +476,7 @@ struct ServiceInfo {
 /// 字段信息
 struct FieldInfo {
     /// 字段名称
+    #[allow(dead_code)]
     name: String,
     /// 字段类型
     type_name: String,

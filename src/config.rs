@@ -55,7 +55,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// 服务器配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct ServerConfig {
     /// 日志配置
@@ -68,16 +68,7 @@ pub struct ServerConfig {
     pub schema: SchemaConfig,
 }
 
-impl Default for ServerConfig {
-    fn default() -> Self {
-        Self {
-            logging: LoggingConfig::default(),
-            completion: CompletionConfig::default(),
-            diagnostics: DiagnosticsConfig::default(),
-            schema: SchemaConfig::default(),
-        }
-    }
-}
+
 
 impl ServerConfig {
     /// 从配置文件和环境变量加载配置
@@ -247,20 +238,14 @@ impl CompletionConfig {
 }
 
 /// 诊断配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct DiagnosticsConfig {
     /// 禁用的诊断类型列表
     pub disabled: HashSet<String>,
 }
 
-impl Default for DiagnosticsConfig {
-    fn default() -> Self {
-        Self {
-            disabled: HashSet::new(),
-        }
-    }
-}
+
 
 impl DiagnosticsConfig {
     pub fn merge(self, other: Self) -> Self {

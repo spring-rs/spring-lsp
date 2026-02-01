@@ -112,7 +112,7 @@ pub enum HttpMethod {
 
 impl HttpMethod {
     /// 从字符串解析 HTTP 方法
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_method(s: &str) -> Option<Self> {
         match s.to_uppercase().as_str() {
             "GET" => Some(HttpMethod::Get),
             "POST" => Some(HttpMethod::Post),
@@ -233,9 +233,9 @@ impl MacroAnalyzer {
                         }
                     }
                 }
-                hover.push_str("\n");
+                hover.push('\n');
             }
-            hover.push_str("\n");
+            hover.push('\n');
         }
 
         // 添加展开后的代码
@@ -436,8 +436,8 @@ impl MacroAnalyzer {
         let mut code = String::new();
 
         // 生成原始结构体定义（带注释）
-        code.push_str(&format!("// 原始定义\n"));
-        code.push_str(&format!("#[derive(Clone)]\n"));
+        code.push_str("// 原始定义\n");
+        code.push_str("#[derive(Clone)]\n");
         code.push_str(&format!("pub struct {} {{\n", struct_name));
         for field in &service.fields {
             if let Some(inject) = &field.inject {
@@ -456,7 +456,7 @@ impl MacroAnalyzer {
         code.push_str("}\n\n");
 
         // 生成 Service trait 实现
-        code.push_str(&format!("// 展开后的代码\n"));
+        code.push_str("// 展开后的代码\n");
         code.push_str(&format!("impl {} {{\n", struct_name));
         code.push_str("    /// 从应用上下文构建服务实例\n");
         code.push_str("    pub fn build(app: &AppBuilder) -> Result<Self> {\n");
@@ -517,20 +517,20 @@ impl MacroAnalyzer {
         match inject.inject_type {
             InjectType::Component => {
                 if let Some(name) = &inject.component_name {
-                    code.push_str(&format!("// 注入类型: 组件\n"));
+                    code.push_str("// 注入类型: 组件\n");
                     code.push_str(&format!("// 组件名称: \"{}\"\n", name));
                     code.push_str(&format!(
                         "// 注入代码: app.get_component::<T>(\"{}\")\n",
                         name
                     ));
                 } else {
-                    code.push_str(&format!("// 注入类型: 组件\n"));
-                    code.push_str(&format!("// 注入代码: app.get_component::<T>()\n"));
+                    code.push_str("// 注入类型: 组件\n");
+                    code.push_str("// 注入代码: app.get_component::<T>()\n");
                 }
             }
             InjectType::Config => {
-                code.push_str(&format!("// 注入类型: 配置\n"));
-                code.push_str(&format!("// 注入代码: app.get_config::<T>()\n"));
+                code.push_str("// 注入类型: 配置\n");
+                code.push_str("// 注入代码: app.get_config::<T>()\n");
             }
         }
 
@@ -619,12 +619,12 @@ impl MacroAnalyzer {
 
         match job {
             JobMacro::Cron { expression, .. } => {
-                code.push_str(&format!("// 任务类型: Cron\n"));
+                code.push_str("// 任务类型: Cron\n");
                 code.push_str(&format!("// Cron 表达式: {}\n", expression));
                 code.push_str("// \n");
                 code.push_str("// 展开后的代码:\n");
                 code.push_str("// \n");
-                code.push_str(&format!("// scheduler.add_job(\n"));
+                code.push_str("// scheduler.add_job(\n");
                 code.push_str(&format!(
                     "//     CronJob::new(\"{}\", || async {{\n",
                     expression
@@ -634,13 +634,13 @@ impl MacroAnalyzer {
                 code.push_str("// );\n");
             }
             JobMacro::FixDelay { seconds, .. } => {
-                code.push_str(&format!("// 任务类型: FixDelay\n"));
+                code.push_str("// 任务类型: FixDelay\n");
                 code.push_str(&format!("// 延迟秒数: {}\n", seconds));
                 code.push_str("// 说明: 任务完成后延迟指定秒数再次执行\n");
                 code.push_str("// \n");
                 code.push_str("// 展开后的代码:\n");
                 code.push_str("// \n");
-                code.push_str(&format!("// scheduler.add_job(\n"));
+                code.push_str("// scheduler.add_job(\n");
                 code.push_str(&format!(
                     "//     FixDelayJob::new({}, || async {{\n",
                     seconds
@@ -650,13 +650,13 @@ impl MacroAnalyzer {
                 code.push_str("// );\n");
             }
             JobMacro::FixRate { seconds, .. } => {
-                code.push_str(&format!("// 任务类型: FixRate\n"));
+                code.push_str("// 任务类型: FixRate\n");
                 code.push_str(&format!("// 频率秒数: {}\n", seconds));
                 code.push_str("// 说明: 每隔指定秒数执行一次任务\n");
                 code.push_str("// \n");
                 code.push_str("// 展开后的代码:\n");
                 code.push_str("// \n");
-                code.push_str(&format!("// scheduler.add_job(\n"));
+                code.push_str("// scheduler.add_job(\n");
                 code.push_str(&format!(
                     "//     FixRateJob::new({}, || async {{\n",
                     seconds
@@ -779,21 +779,18 @@ impl MacroAnalyzer {
     fn extract_fields(&self, fields: &syn::Fields) -> Vec<Field> {
         let mut result = Vec::new();
 
-        match fields {
-            syn::Fields::Named(fields_named) => {
-                for field in &fields_named.named {
-                    if let Some(ident) = &field.ident {
-                        let inject = self.extract_inject_macro(&field.attrs);
+        if let syn::Fields::Named(fields_named) = fields {
+            for field in &fields_named.named {
+                if let Some(ident) = &field.ident {
+                    let inject = self.extract_inject_macro(&field.attrs);
 
-                        result.push(Field {
-                            name: ident.to_string(),
-                            type_name: self.type_to_string(&field.ty),
-                            inject,
-                        });
-                    }
+                    result.push(Field {
+                        name: ident.to_string(),
+                        type_name: self.type_to_string(&field.ty),
+                        inject,
+                    });
                 }
             }
-            _ => {}
         }
 
         result
@@ -927,7 +924,7 @@ impl MacroAnalyzer {
                 if part.contains("method") {
                     if let Some(eq_pos) = part.find('=') {
                         let method_str = part[eq_pos + 1..].trim().trim_matches('"');
-                        if let Some(method) = HttpMethod::from_str(method_str) {
+                        if let Some(method) = HttpMethod::parse_method(method_str) {
                             methods.push(method);
                         }
                     }
@@ -1243,7 +1240,7 @@ impl MacroAnalyzer {
         let mut open_braces = 0;
         let mut param_start = None;
 
-        for (i, ch) in path.chars().enumerate() {
+        for (i, ch) in path.char_indices() {
             match ch {
                 '{' => {
                     if open_braces > 0 {

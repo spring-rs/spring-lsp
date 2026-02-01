@@ -135,7 +135,7 @@ impl CompletionEngine {
         // 3. 检查是否在配置节内
         if let Some(section) = self.find_section_at_position(doc, position) {
             // 检查是否在值位置（可能需要枚举值补全）
-            if let Some(property_name) = self.find_property_at_position(&section, position) {
+            if let Some(property_name) = self.find_property_at_position(section, position) {
                 if let Some(property_schema) = self
                     .toml_analyzer
                     .schema_provider()
@@ -153,7 +153,7 @@ impl CompletionEngine {
             }
 
             // 提供配置项补全
-            return self.complete_config_properties(&section);
+            return self.complete_config_properties(section);
         }
 
         Vec::new()
@@ -186,13 +186,7 @@ impl CompletionEngine {
         doc: &'a TomlDocument,
         position: Position,
     ) -> Option<&'a crate::toml_analyzer::ConfigSection> {
-        for section in doc.config_sections.values() {
-            // 检查位置是否在配置节范围内
-            if self.position_in_range(position, section.range) {
-                return Some(section);
-            }
-        }
-        None
+        doc.config_sections.values().find(|&section| self.position_in_range(position, section.range))
     }
 
     /// 查找光标所在的属性名

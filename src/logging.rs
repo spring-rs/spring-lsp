@@ -18,12 +18,10 @@
 //! ```rust,no_run
 //! use spring_lsp::logging::init_logging;
 //!
-//! fn main() {
-//!     // 初始化日志系统
-//!     init_logging().expect("Failed to initialize logging");
-//!     
-//!     tracing::info!("Application started");
-//! }
+//! // 初始化日志系统
+//! init_logging().expect("Failed to initialize logging");
+//! 
+//! tracing::info!("Application started");
 //! ```
 
 use std::env;

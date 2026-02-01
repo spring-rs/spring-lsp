@@ -665,6 +665,7 @@ impl LspServer {
         };
 
         // 如果客户端提供了工作空间路径，重新加载配置
+        #[allow(deprecated)]
         if let Some(root_uri) = params.root_uri {
             if let Ok(workspace_path) = root_uri.to_file_path() {
                 tracing::info!(

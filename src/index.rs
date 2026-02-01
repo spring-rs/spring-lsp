@@ -50,7 +50,7 @@ impl SymbolIndex {
 
     /// 添加符号
     pub fn add(&self, name: String, info: SymbolInfo) {
-        self.symbols.entry(name).or_insert_with(Vec::new).push(info);
+        self.symbols.entry(name).or_default().push(info);
     }
 
     /// 查找符号

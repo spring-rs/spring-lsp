@@ -86,7 +86,7 @@ impl RouteNavigator {
                         self.index
                             .path_map
                             .entry(route_macro.path.clone())
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(route_index);
                     }
                 }
@@ -651,7 +651,7 @@ impl RouteNavigator {
         let mut in_param = false;
         let mut param_start = 0;
 
-        for (i, ch) in path.chars().enumerate() {
+        for (i, ch) in path.char_indices() {
             match ch {
                 '{' => {
                     in_param = true;

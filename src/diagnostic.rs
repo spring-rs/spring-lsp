@@ -22,7 +22,7 @@ impl DiagnosticEngine {
     pub fn add(&self, uri: Url, diagnostic: Diagnostic) {
         self.diagnostics
             .entry(uri)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(diagnostic);
     }
 

@@ -22,6 +22,7 @@ fn create_test_schema_provider() -> SchemaProvider {
             default: Some(Value::String("localhost".to_string())),
             required: false,
             deprecated: None,
+            example: Some("localhost".to_string()),
         },
     );
 
