@@ -146,8 +146,8 @@ impl LspServer {
         // 初始化所有组件
         tracing::info!("Initializing components...");
 
-        // 1. Schema 提供者（使用同步方式初始化，异步加载在后台进行）
-        let schema_provider = Arc::new(SchemaProvider::new());
+        // 1. Schema 提供者（使用 fallback schema 初始化，避免测试时的异步加载问题）
+        let schema_provider = Arc::new(SchemaProvider::default());
 
         // 2. TOML 分析器
         let toml_analyzer = Arc::new(TomlAnalyzer::new((*schema_provider).clone()));

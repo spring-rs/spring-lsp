@@ -850,8 +850,10 @@ impl TomlAnalyzer {
     ///
     /// ```
     /// use spring_lsp::toml_analyzer::TomlAnalyzer;
+    /// use spring_lsp::schema::SchemaProvider;
     ///
-    /// let analyzer = TomlAnalyzer::new();
+    /// let schema_provider = SchemaProvider::new();
+    /// let analyzer = TomlAnalyzer::new(schema_provider);
     /// let doc = analyzer.parse("[web]\nhost = \"localhost\"").unwrap();
     /// assert_eq!(doc.config_sections.len(), 1);
     /// ```

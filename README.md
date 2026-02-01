@@ -217,9 +217,18 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 ```bash
 git clone https://github.com/spring-rs/spring-lsp
 cd spring-lsp
+
+# 安装 Git hooks（自动格式化）
+./scripts/install-hooks.sh
+
+# 运行测试
 cargo test
+
+# 启动服务器
 cargo run
 ```
+
+详细的开发指南请参考 [DEVELOPMENT.md](docs/DEVELOPMENT.md)。
 
 ### Running Tests
 ```bash

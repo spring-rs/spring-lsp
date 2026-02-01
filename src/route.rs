@@ -200,7 +200,7 @@ impl RouteNavigator {
     /// let navigator = RouteNavigator::new();
     /// let routes = navigator.find_routes_by_handler("get_user");
     /// for route in routes {
-    ///     println!("Handler 'get_user' handles: {} {}", route.methods[0], route.path);
+    ///     println!("Handler 'get_user' handles: {:?} {}", route.methods[0], route.path);
     /// }
     /// ```
     pub fn find_routes_by_handler(&self, handler_name: &str) -> Vec<&RouteInfo> {

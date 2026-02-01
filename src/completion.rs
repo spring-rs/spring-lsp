@@ -162,11 +162,32 @@ impl CompletionEngine {
     /// 检查是否在配置前缀位置
     ///
     /// 判断光标是否在 `[` 字符之后，需要补全配置前缀
-    fn is_prefix_position(&self, _doc: &TomlDocument, _position: Position) -> bool {
-        // 简化实现：这里需要检查光标前的字符是否是 `[`
-        // 在实际实现中，应该解析文档内容来判断
-        // 目前返回 false，让测试可以通过其他路径
-        false
+    fn is_prefix_position(&self, doc: &TomlDocument, position: Position) -> bool {
+        // 获取光标所在行的内容
+        let lines: Vec<&str> = doc.content.lines().collect();
+
+        if position.line as usize >= lines.len() {
+            return false;
+        }
+
+        let line = lines[position.line as usize];
+        let char_pos = position.character as usize;
+
+        // 光标位置必须在行内或行尾
+        if char_pos > line.len() {
+            return false;
+        }
+
+        // 检查光标前的字符
+        let before_cursor = if char_pos > 0 { &line[..char_pos] } else { "" };
+
+        // 如果光标前是 `[` 或 `[` 后跟一些字符，则认为是前缀位置
+        // 但必须确保还没有闭合括号
+        let trimmed = before_cursor.trim_start();
+
+        // 只有在输入 `[` 后且还没有完成节名输入时才提供前缀补全
+        // 如果已经有完整的节名（包含 `]`），则不是前缀位置
+        trimmed.starts_with('[') && !trimmed.contains(']') && !line.contains(']')
     }
 
     /// 检查是否在环境变量位置
