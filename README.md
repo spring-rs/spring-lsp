@@ -48,10 +48,17 @@ cargo build --release
 
 The binary will be available at `target/release/spring-lsp`.
 
-### From crates.io (Coming Soon)
+### From crates.io
 ```bash
 cargo install spring-lsp
 ```
+
+### Pre-built Binaries
+Download pre-built binaries from the [releases page](https://github.com/spring-rs/spring-lsp/releases):
+
+- Linux x86_64 (glibc and musl)
+- macOS x86_64 and ARM64
+- Windows x86_64
 
 ## Editor Setup
 
@@ -228,6 +235,9 @@ cargo test --release
 # Performance tests
 cargo test --release performance
 ```
+
+### Release Process
+See [RELEASE.md](RELEASE.md) for detailed release instructions and tools.
 
 ## Documentation
 

@@ -1,0 +1,203 @@
+name: Version Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - prerelease
+        default: patch
+      prerelease_type:
+        description: 'Prerelease type (only for prerelease bump)'
+        required: false
+        type: choice
+        options:
+          - alpha
+          - beta
+          - rc
+        default: alpha
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bump-version:
+    name: Bump version
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install cargo-edit
+        run: cargo install cargo-edit
+      
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+      
+      - name: Get current version
+        id: current_version
+        run: |
+          CURRENT_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT_VERSION"
+      
+      - name: Bump version
+        id: new_version
+        run: |
+          BUMP_TYPE="${{ github.event.inputs.bump_type }}"
+          PRERELEASE_TYPE="${{ github.event.inputs.prerelease_type }}"
+          
+          case $BUMP_TYPE in
+            patch)
+              cargo set-version --bump patch
+              ;;
+            minor)
+              cargo set-version --bump minor
+              ;;
+            major)
+              cargo set-version --bump major
+              ;;
+            prerelease)
+              if [ -n "$PRERELEASE_TYPE" ]; then
+                # 获取当前版本并添加预发布标识
+                CURRENT=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+                
+                # 如果当前版本已经是预发布版本，增加预发布号
+                if [[ "$CURRENT" =~ -[a-zA-Z]+\.[0-9]+$ ]]; then
+                  cargo set-version --bump prerelease
+                else
+                  # 否则，增加 minor 版本并添加预发布标识
+                  cargo set-version --bump minor
+                  NEW_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+                  cargo set-version "${NEW_VERSION}-${PRERELEASE_TYPE}.1"
+                fi
+              else
+                cargo set-version --bump prerelease
+              fi
+              ;;
+          esac
+          
+          NEW_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+      
+      - name: Update CHANGELOG.md
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.new }}"
+          DATE=$(date +%Y-%m-%d)
+          
+          if [ -f "CHANGELOG.md" ]; then
+            # 在 CHANGELOG.md 顶部添加新版本条目
+            sed -i "1i\\
+## [${NEW_VERSION}] - ${DATE}\\
+\\
+### Added\\
+- New features and improvements\\
+\\
+### Changed\\
+- Updates and modifications\\
+\\
+### Fixed\\
+- Bug fixes and corrections\\
+\\
+" CHANGELOG.md
+          else
+            # 创建新的 CHANGELOG.md
+            cat > CHANGELOG.md << EOF
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [${NEW_VERSION}] - ${DATE}
+
+### Added
+- Initial release of spring-lsp
+- Language Server Protocol implementation for spring-rs framework
+- TOML configuration support with smart completion
+- Rust macro analysis and validation
+- Route management and navigation
+- Dependency injection validation
+- Performance monitoring and diagnostics
+
+### Features
+- Smart completion for configuration sections and properties
+- Real-time validation with detailed error messages
+- Hover documentation with type information and examples
+- Environment variable support (\${VAR:default} syntax)
+- Schema-based validation with automatic schema loading
+- Macro recognition for spring-rs macros
+- Route detection and conflict analysis
+- Multi-document workspace support
+
+EOF
+          fi
+      
+      - name: Run tests
+        run: cargo test --all-features
+      
+      - name: Commit changes
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.new }}"
+          
+          git add Cargo.toml Cargo.lock CHANGELOG.md
+          git commit -m "chore: bump version to $NEW_VERSION"
+          git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
+      
+      - name: Push changes
+        run: |
+          git push origin HEAD
+          git push origin --tags
+      
+      - name: Create Pull Request (for review)
+        if: github.event.inputs.bump_type != 'patch'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: bump version to ${{ steps.new_version.outputs.new }}"
+          title: "chore: bump version to ${{ steps.new_version.outputs.new }}"
+          body: |
+            ## Version Bump: ${{ steps.current_version.outputs.current }} → ${{ steps.new_version.outputs.new }}
+            
+            **Bump Type:** ${{ github.event.inputs.bump_type }}
+            
+            ### Changes
+            - Updated version in `Cargo.toml`
+            - Updated `CHANGELOG.md` with new version entry
+            - Created git tag `v${{ steps.new_version.outputs.new }}`
+            
+            ### Next Steps
+            1. Review and merge this PR
+            2. The release workflow will automatically trigger when the tag is pushed
+            3. The package will be published to crates.io
+            4. GitHub release will be created with binaries
+            
+            **Note:** This is an automated version bump. Please review the changes before merging.
+          branch: version-bump-${{ steps.new_version.outputs.new }}
+          delete-branch: true
+      
+      - name: Summary
+        run: |
+          echo "✅ Version bumped successfully!"
+          echo ""
+          echo "📊 Version: ${{ steps.current_version.outputs.current }} → ${{ steps.new_version.outputs.new }}"
+          echo "🏷️ Tag: v${{ steps.new_version.outputs.new }}"
+          echo "📝 CHANGELOG.md updated"
+          echo ""
+          echo "🚀 To release, push the tag or trigger the release workflow manually."

@@ -1,0 +1,308 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.1.0)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run (do not actually publish)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # 预检查：确保代码质量
+  pre-check:
+    name: Pre-release checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      
+      - name: Cache cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      
+      - name: Run clippy
+        run: cargo clippy --all-features -- -D warnings
+      
+      - name: Run tests
+        run: cargo test --all-features
+      
+      - name: Check documentation
+        run: cargo doc --all-features --no-deps
+
+  # 版本验证：确保版本号正确
+  version-check:
+    name: Version validation
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Extract version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # 检查是否为预发布版本
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "Detected version: $VERSION"
+      
+      - name: Validate version format
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
+            echo "Error: Invalid version format: $VERSION"
+            echo "Expected format: X.Y.Z or X.Y.Z-suffix"
+            exit 1
+          fi
+      
+      - name: Check Cargo.toml version
+        run: |
+          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          EXPECTED_VERSION="${{ steps.version.outputs.version }}"
+          
+          if [[ "$CARGO_VERSION" != "$EXPECTED_VERSION" ]]; then
+            echo "Error: Version mismatch!"
+            echo "Cargo.toml version: $CARGO_VERSION"
+            echo "Expected version: $EXPECTED_VERSION"
+            echo "Please update Cargo.toml version before releasing"
+            exit 1
+          fi
+          
+          echo "Version validation passed: $CARGO_VERSION"
+
+  # 构建发布版本
+  build:
+    name: Build release
+    needs: [pre-check, version-check]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: spring-lsp
+            asset_name: spring-lsp-linux-x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact_name: spring-lsp
+            asset_name: spring-lsp-linux-x86_64-musl
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: spring-lsp
+            asset_name: spring-lsp-macos-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: spring-lsp
+            asset_name: spring-lsp-macos-aarch64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: spring-lsp.exe
+            asset_name: spring-lsp-windows-x86_64.exe
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      
+      - name: Install musl tools (Linux musl only)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      
+      - name: Cache cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+      
+      - name: Strip binary (Unix only)
+        if: matrix.os != 'windows-latest'
+        run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+      
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.asset_name }}
+          path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
+  # 发布到 crates.io
+  publish-crates:
+    name: Publish to crates.io
+    needs: [pre-check, version-check, build]
+    runs-on: ubuntu-latest
+    if: github.event.inputs.dry_run != 'true'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Verify package
+        run: cargo package --allow-dirty
+      
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          echo "Publishing spring-lsp version ${{ needs.version-check.outputs.version }} to crates.io..."
+          cargo publish --token $CARGO_REGISTRY_TOKEN
+
+  # 创建 GitHub Release
+  create-release:
+    name: Create GitHub Release
+    needs: [version-check, build, publish-crates]
+    runs-on: ubuntu-latest
+    if: always() && (needs.publish-crates.result == 'success' || github.event.inputs.dry_run == 'true')
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: ./artifacts
+      
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          
+          # 压缩二进制文件
+          for dir in artifacts/*/; do
+            if [ -d "$dir" ]; then
+              asset_name=$(basename "$dir")
+              if [[ "$asset_name" == *"windows"* ]]; then
+                # Windows 二进制文件
+                cp "$dir"/*.exe "release-assets/${asset_name}"
+              else
+                # Unix 二进制文件，创建 tar.gz
+                tar -czf "release-assets/${asset_name}.tar.gz" -C "$dir" .
+              fi
+            fi
+          done
+          
+          ls -la release-assets/
+      
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.version-check.outputs.version }}"
+          
+          # 尝试从 CHANGELOG.md 提取版本信息
+          if [ -f "CHANGELOG.md" ]; then
+            # 提取当前版本的变更日志
+            CHANGELOG_CONTENT=$(sed -n "/## \[${VERSION}\]/,/## \[/p" CHANGELOG.md | sed '$d' | tail -n +2)
+            if [ -n "$CHANGELOG_CONTENT" ]; then
+              echo "Found changelog for version $VERSION"
+              echo "$CHANGELOG_CONTENT" > release-notes.md
+            else
+              echo "No specific changelog found for version $VERSION, using generic notes"
+              echo "Release $VERSION" > release-notes.md
+              echo "" >> release-notes.md
+              echo "See [CHANGELOG.md](CHANGELOG.md) for detailed changes." >> release-notes.md
+            fi
+          else
+            echo "No CHANGELOG.md found, creating generic release notes"
+            echo "Release $VERSION" > release-notes.md
+            echo "" >> release-notes.md
+            echo "## Features" >> release-notes.md
+            echo "- Language Server Protocol implementation for spring-rs framework" >> release-notes.md
+            echo "- TOML configuration support with smart completion" >> release-notes.md
+            echo "- Rust macro analysis and validation" >> release-notes.md
+            echo "- Route management and navigation" >> release-notes.md
+            echo "" >> release-notes.md
+            echo "## Installation" >> release-notes.md
+            echo '```bash' >> release-notes.md
+            echo "cargo install spring-lsp" >> release-notes.md
+            echo '```' >> release-notes.md
+          fi
+          
+          echo "Release notes:"
+          cat release-notes.md
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.version-check.outputs.version }}
+          name: spring-lsp v${{ needs.version-check.outputs.version }}
+          body_path: release-notes.md
+          prerelease: ${{ needs.version-check.outputs.is_prerelease }}
+          files: release-assets/*
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 发布后通知
+  post-release:
+    name: Post-release notifications
+    needs: [version-check, create-release]
+    runs-on: ubuntu-latest
+    if: always() && needs.create-release.result == 'success'
+    
+    steps:
+      - name: Summary
+        run: |
+          echo "🎉 Successfully released spring-lsp v${{ needs.version-check.outputs.version }}!"
+          echo ""
+          echo "📦 Published to crates.io: https://crates.io/crates/spring-lsp"
+          echo "🏷️ GitHub Release: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.version-check.outputs.version }}"
+          echo ""
+          echo "Installation:"
+          echo "cargo install spring-lsp"
