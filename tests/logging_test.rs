@@ -74,6 +74,9 @@ fn test_log_level_validation() {
 }
 
 /// 测试日志文件输出
+///
+/// 注意：由于 tracing_subscriber 只能初始化一次，且测试可能并行运行，
+/// 此测试设计为在日志系统已被初始化的情况下也能通过。
 #[test]
 fn test_logging_to_file() {
     use spring_lsp::logging::{init_logging_with_config, LogConfig};
@@ -89,28 +92,61 @@ fn test_logging_to_file() {
         log_file: Some(log_file.clone()),
     };
 
-    // 初始化日志系统（可能失败，因为可能已经初始化过）
-    let _ = init_logging_with_config(config);
+    // 尝试初始化日志系统
+    let init_result = init_logging_with_config(config);
 
-    // 写入日志
-    tracing::info!("Test log message");
-
-    // 注意：由于日志是异步写入的，需要等待一小段时间
-    std::thread::sleep(std::time::Duration::from_millis(100));
-
-    // 验证日志文件是否存在（如果日志系统成功初始化）
-    // 由于可能已经初始化过，这个测试可能会失败，所以我们只检查文件是否存在
-    if log_file.exists() {
-        let content = fs::read_to_string(&log_file).unwrap();
-        // JSON 格式的日志应该包含这些字段或包含日志消息
-        assert!(
-            content.contains("timestamp")
-                || content.contains("level")
-                || content.contains("Test log message")
-                || content.contains("Logging system initialized")
-                || !content.is_empty()
-        );
+    // 如果初始化失败（可能已被其他测试初始化），这是预期的行为
+    // 我们仍然可以写入日志，但它们会去到已初始化的目标
+    if init_result.is_err() {
+        eprintln!("Note: logging system already initialized (expected in parallel test execution)");
+        // 在这种情况下，我们的日志文件不会被使用，测试应该通过
+        return;
     }
+
+    // 如果初始化成功，写入日志并验证
+    tracing::info!("Test log message for file output");
+
+    // 等待日志异步写入完成
+    // 在 CI 环境中，I/O 可能较慢，所以给予足够的时间
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    // 验证日志文件
+    if !log_file.exists() {
+        panic!("Log file was not created despite successful initialization");
+    }
+
+    // 多次尝试读取文件，因为写入可能还在进行
+    let mut content = String::new();
+    let mut read_success = false;
+
+    for attempt in 0..10 {
+        if let Ok(c) = fs::read_to_string(&log_file) {
+            content = c;
+            if !content.is_empty() {
+                read_success = true;
+                break;
+            }
+        }
+        // 每次尝试之间等待更长时间
+        std::thread::sleep(std::time::Duration::from_millis(100 * (attempt + 1)));
+    }
+
+    if !read_success || content.is_empty() {
+        panic!("Log file exists but is empty after multiple read attempts");
+    }
+
+    // JSON 格式的日志应该包含这些字段
+    let has_expected_content = content.contains("timestamp")
+        || content.contains("level")
+        || content.contains("Test log message")
+        || content.contains("Logging system initialized");
+
+    assert!(
+        has_expected_content,
+        "Log file content does not contain expected fields.\nContent length: {}\nFirst 500 chars: {}",
+        content.len(),
+        &content.chars().take(500).collect::<String>()
+    );
 }
 
 /// 测试详细模式
