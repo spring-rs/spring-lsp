@@ -66,7 +66,7 @@ fn test_server_startup_time() {
     println!("Testing server startup time...");
 
     let start_time = Instant::now();
-    let server = LspServer::start();
+    let server = LspServer::new_for_test();
     let startup_duration = start_time.elapsed();
 
     assert!(server.is_ok(), "Server should start successfully");
@@ -95,7 +95,7 @@ fn test_component_initialization_time() {
     println!("Testing component initialization time...");
 
     let start_time = Instant::now();
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     let init_duration = start_time.elapsed();
 
     // 测试初始化握手时间
@@ -142,7 +142,7 @@ fn test_component_initialization_time() {
 fn test_schema_loading_performance() {
     println!("Testing schema loading performance...");
 
-    let server = LspServer::start().unwrap();
+    let server = LspServer::new_for_test().unwrap();
 
     // 测试 Schema 查询性能
     let schema_start = Instant::now();
@@ -189,7 +189,7 @@ fn test_startup_memory_usage() {
 
     let start_time = Instant::now();
     for i in 0..10 {
-        let server = LspServer::start();
+        let server = LspServer::new_for_test();
         assert!(server.is_ok(), "Server {} should start successfully", i);
         servers.push(server.unwrap());
     }
@@ -223,7 +223,7 @@ fn test_startup_memory_usage() {
 fn test_basic_completion_response_time() {
     println!("Testing basic completion response time...");
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     let uri = Url::parse("file:///completion-test.toml").unwrap();
@@ -290,7 +290,7 @@ host = "localhost"
 fn test_completion_performance_with_document_sizes() {
     println!("Testing completion performance with different document sizes...");
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     // 测试不同大小的文档
@@ -408,7 +408,7 @@ enabled_{} = true
 fn test_complex_toml_completion_performance() {
     println!("Testing complex TOML completion performance...");
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     let uri = Url::parse("file:///complex-config.toml").unwrap();
@@ -578,7 +578,7 @@ consumer_group = "app-group"
 fn test_completion_cache_effectiveness() {
     println!("Testing completion cache effectiveness...");
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     let uri = Url::parse("file:///cache-test.toml").unwrap();
@@ -672,7 +672,7 @@ host = "localhost"
 fn test_basic_diagnostic_update_time() {
     println!("Testing basic diagnostic update time...");
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     let uri = Url::parse("file:///diagnostic-test.toml").unwrap();
@@ -745,7 +745,7 @@ unknown_key = "value"
 fn test_large_document_diagnostic_performance() {
     println!("Testing large document diagnostic performance...");
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     let uri = Url::parse("file:///large-diagnostic-test.toml").unwrap();
@@ -841,7 +841,7 @@ unknown_key = "value"
 fn test_incremental_update_performance() {
     println!("Testing incremental update performance...");
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     let uri = Url::parse("file:///incremental-test.toml").unwrap();
@@ -957,7 +957,7 @@ thread_pool_size = 4
 fn test_multi_document_diagnostic_performance() {
     println!("Testing multi-document diagnostic performance...");
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     // 创建多个文档
@@ -1077,7 +1077,7 @@ thread_pool_size = 4
 fn test_comprehensive_performance_scenario() {
     println!("Testing comprehensive performance scenario...");
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     // 模拟真实的开发工作流
@@ -1211,7 +1211,7 @@ fn test_performance_regression() {
 
         // 测试启动时间
         let startup_start = Instant::now();
-        let mut server = LspServer::start().unwrap();
+        let mut server = LspServer::new_for_test().unwrap();
         server.state = spring_lsp::server::ServerState::Initialized;
         let startup_time = startup_start.elapsed();
         startup_times.push(startup_time);

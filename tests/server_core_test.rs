@@ -24,7 +24,7 @@ use spring_lsp::server::{LspServer, ServerState};
 /// **Validates: Requirements 1.2**
 #[test]
 fn test_basic_initialization() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -62,7 +62,7 @@ fn test_basic_initialization() {
 /// **Validates: Requirements 1.2**
 #[test]
 fn test_initialize_declares_all_capabilities() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -139,7 +139,7 @@ fn test_initialize_declares_all_capabilities() {
 /// **Validates: Requirements 1.2, 1.4**
 #[test]
 fn test_initialize_uses_incremental_sync() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -181,7 +181,7 @@ fn test_initialize_uses_incremental_sync() {
 /// **Validates: Requirements 1.2**
 #[test]
 fn test_initialize_without_client_info() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -206,7 +206,7 @@ fn test_initialize_without_client_info() {
 /// **Validates: Requirements 1.2**
 #[test]
 fn test_initialize_with_workspace_folders() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -244,7 +244,7 @@ fn test_initialize_with_workspace_folders() {
 /// **Validates: Requirements 1.7**
 #[test]
 fn test_graceful_shutdown() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
 
     // 调用关闭方法
     let result = server.shutdown();
@@ -258,7 +258,7 @@ fn test_graceful_shutdown() {
 fn test_shutdown_cleans_resources() {
     use lsp_types::{DidOpenTextDocumentParams, TextDocumentItem};
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     // 打开一些文档
@@ -338,7 +338,7 @@ fn arb_initialize_params() -> impl Strategy<Value = InitializeParams> {
 proptest! {
     #[test]
     fn prop_initialize_returns_valid_response(params in arb_initialize_params()) {
-        let mut server = LspServer::start().unwrap();
+        let mut server = LspServer::new_for_test().unwrap();
         let result = server.handle_initialize(params);
 
         // 属性：初始化应该总是成功
@@ -381,7 +381,7 @@ proptest! {
 proptest! {
     #[test]
     fn prop_initialize_declares_completion_triggers(params in arb_initialize_params()) {
-        let mut server = LspServer::start().unwrap();
+        let mut server = LspServer::new_for_test().unwrap();
         let result = server.handle_initialize(params).unwrap();
 
         let completion = result.capabilities.completion_provider.unwrap();
@@ -406,7 +406,7 @@ proptest! {
 /// **Validates: Requirements 1.2**
 #[test]
 fn test_initialize_with_empty_capabilities() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -437,7 +437,7 @@ fn test_initialize_with_empty_capabilities() {
 /// **Validates: Requirements 1.2**
 #[test]
 fn test_initialize_with_very_long_client_name() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
 
     let long_name = "a".repeat(10000);
 
@@ -467,7 +467,7 @@ fn test_initialize_with_very_long_client_name() {
 /// **Validates: Requirements 1.2**
 #[test]
 fn test_initialize_with_invalid_root_uri() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -501,13 +501,13 @@ fn test_concurrent_initialization() {
     use std::sync::Arc;
     use std::thread;
 
-    let server = Arc::new(LspServer::start().unwrap());
+    let server = Arc::new(LspServer::new_for_test().unwrap());
 
     let handles: Vec<_> = (0..10)
         .map(|i| {
             thread::spawn(move || {
                 // 每个线程创建自己的服务器实例
-                let mut server = LspServer::start().unwrap();
+                let mut server = LspServer::new_for_test().unwrap();
 
                 #[allow(deprecated)]
                 let params = InitializeParams {
@@ -562,7 +562,7 @@ proptest! {
     fn prop_shutdown_always_succeeds(uris in arb_document_uris()) {
         use lsp_types::{DidOpenTextDocumentParams, TextDocumentItem};
 
-        let mut server = LspServer::start().unwrap();
+        let mut server = LspServer::new_for_test().unwrap();
         server.state = ServerState::Initialized;
 
         // 打开一些文档
@@ -597,7 +597,7 @@ proptest! {
             ServerState::ShuttingDown,
         ])
     ) {
-        let mut server = LspServer::start().unwrap();
+        let mut server = LspServer::new_for_test().unwrap();
         server.state = state;
 
         // 属性：无论在什么状态，关闭都应该成功
@@ -617,7 +617,7 @@ proptest! {
 fn test_full_lifecycle() {
     use lsp_types::{DidOpenTextDocumentParams, TextDocumentItem};
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
 
     // 1. 初始化
     #[allow(deprecated)]
@@ -667,7 +667,7 @@ fn test_full_lifecycle() {
 /// **Validates: Requirements 1.7**
 #[test]
 fn test_multiple_shutdowns_are_idempotent() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
 
     // 第一次关闭
     let result1 = server.shutdown();
@@ -693,7 +693,7 @@ fn test_multiple_shutdowns_are_idempotent() {
 fn test_initialization_performance() {
     use std::time::Instant;
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -732,7 +732,7 @@ fn test_shutdown_performance() {
     use lsp_types::{DidOpenTextDocumentParams, TextDocumentItem};
     use std::time::Instant;
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = ServerState::Initialized;
 
     // 打开多个文档
@@ -771,7 +771,7 @@ fn test_shutdown_performance() {
 fn test_operations_before_initialization() {
     use lsp_types::{DidOpenTextDocumentParams, TextDocumentItem};
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     // 注意：服务器处于 Uninitialized 状态
 
     let uri = Url::parse("file:///test.toml").unwrap();
@@ -795,7 +795,7 @@ fn test_operations_before_initialization() {
 fn test_operations_after_shutdown() {
     use lsp_types::{DidOpenTextDocumentParams, TextDocumentItem};
 
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = ServerState::ShuttingDown;
 
     let uri = Url::parse("file:///test.toml").unwrap();

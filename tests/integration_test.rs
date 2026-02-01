@@ -37,13 +37,13 @@ fn test_diagnostic_engine_creation() {
 #[test]
 fn test_lsp_server_creation() {
     // 测试 LSP 服务器可以创建
-    let result = LspServer::start();
+    let result = LspServer::new_for_test();
     assert!(result.is_ok(), "LSP server should start successfully");
 }
 
 #[test]
 fn test_server_initialization() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
 
     #[allow(deprecated)]
     let params = InitializeParams {
@@ -78,7 +78,7 @@ fn test_server_initialization() {
 
 #[test]
 fn test_document_lifecycle() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     let uri = Url::parse("file:///test.toml").unwrap();
@@ -141,7 +141,7 @@ fn test_document_lifecycle() {
 
 #[test]
 fn test_toml_document_analysis() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     let uri = Url::parse("file:///config.toml").unwrap();
@@ -179,7 +179,7 @@ url = "redis://localhost:6379"
 
 #[test]
 fn test_server_status_tracking() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     // 初始状态
@@ -218,7 +218,7 @@ fn test_server_status_tracking() {
 
 #[test]
 fn test_error_recovery() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     // 尝试修改不存在的文档（应该不会崩溃）
@@ -248,7 +248,7 @@ fn test_error_recovery() {
 
 #[test]
 fn test_multiple_documents() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     // 打开多个文档
@@ -325,7 +325,7 @@ fn test_multiple_documents() {
 /// 嵌套配置的复杂 TOML 文档，并提供完整的 LSP 功能。
 #[test]
 fn test_complex_toml_document_workflow() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     let uri = Url::parse("file:///config/app.toml").unwrap();
@@ -481,7 +481,7 @@ service_name = "spring-rs-app"
 /// 提供一致和准确的信息。
 #[test]
 fn test_completion_hover_diagnostics_integration() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     let uri = Url::parse("file:///test-integration.toml").unwrap();
@@ -599,7 +599,7 @@ invalid_option = "should_warn"  # 无效配置项
 #[test]
 fn test_schema_loading_and_fallback() {
     // 这个测试验证 Schema 相关的降级行为
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     // 验证 Schema Provider 已初始化
@@ -657,7 +657,7 @@ fn test_schema_loading_and_fallback() {
 /// 验证环境变量的识别、补全、悬停和验证功能。
 #[test]
 fn test_environment_variable_workflow() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     let uri = Url::parse("file:///env-test.toml").unwrap();
@@ -730,7 +730,7 @@ url = "redis://${REDIS_HOST}:${REDIS_PORT:6379}"
 /// 验证服务器能够同时处理多个文档，并且文档之间的操作不会相互干扰。
 #[test]
 fn test_multi_document_workspace() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     // 创建多个不同类型的文档
@@ -909,7 +909,7 @@ hot_reload = true
 /// 验证完整的配置验证流程，包括类型检查、必需项检查、废弃警告等。
 #[test]
 fn test_configuration_validation_workflow() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     let uri = Url::parse("file:///validation-test.toml").unwrap();
@@ -1016,7 +1016,7 @@ max_connections = 20  # 修复：合理的范围值
 /// 验证服务器在各种错误情况下的恢复能力。
 #[test]
 fn test_comprehensive_error_recovery() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     // 1. 测试无效 URI 处理
@@ -1105,12 +1105,12 @@ fn test_comprehensive_error_recovery() {
 /// 验证服务器在负载下的性能表现。
 #[test]
 fn test_performance_characteristics() {
-    let mut server = LspServer::start().unwrap();
+    let mut server = LspServer::new_for_test().unwrap();
     server.state = spring_lsp::server::ServerState::Initialized;
 
     // 1. 测试初始化时间
     let init_start = Instant::now();
-    let mut new_server = LspServer::start().unwrap();
+    let mut new_server = LspServer::new_for_test().unwrap();
     let init_duration = init_start.elapsed();
 
     // 初始化应该在合理时间内完成（500ms）

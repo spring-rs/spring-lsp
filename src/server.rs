@@ -116,6 +116,21 @@ impl LspServer {
 
         // 通过标准输入输出创建 LSP 连接
         let (connection, _io_threads) = Connection::stdio();
+        
+        Self::new_with_connection(connection)
+    }
+
+    /// 为测试创建 LSP 服务器（不使用 stdio 连接）
+    pub fn new_for_test() -> Result<Self> {
+        // 创建一个假的连接，用于测试
+        // 我们不会实际使用这个连接发送消息
+        let (connection, _io_threads) = Connection::memory();
+        
+        Self::new_with_connection(connection)
+    }
+
+    /// 使用给定连接创建服务器实例
+    fn new_with_connection(connection: Connection) -> Result<Self> {
 
         // 加载默认配置（在初始化时会从客户端获取工作空间路径并重新加载）
         let config = ServerConfig::load(None);
@@ -843,14 +858,14 @@ mod tests {
     #[test]
     fn test_server_state_transitions() {
         // 初始状态应该是未初始化
-        let server = LspServer::start().unwrap();
+        let server = LspServer::new_for_test().unwrap();
         assert_eq!(server.state, ServerState::Uninitialized);
     }
 
     /// 测试文档打开
     #[test]
     fn test_document_open() {
-        let mut server = LspServer::start().unwrap();
+        let mut server = LspServer::new_for_test().unwrap();
         server.state = ServerState::Initialized;
 
         let uri = Url::parse("file:///test.toml").unwrap();
@@ -877,7 +892,7 @@ mod tests {
     /// 测试文档修改
     #[test]
     fn test_document_change() {
-        let mut server = LspServer::start().unwrap();
+        let mut server = LspServer::new_for_test().unwrap();
         server.state = ServerState::Initialized;
 
         let uri = Url::parse("file:///test.toml").unwrap();
@@ -916,7 +931,7 @@ mod tests {
     /// 测试文档关闭
     #[test]
     fn test_document_close() {
-        let mut server = LspServer::start().unwrap();
+        let mut server = LspServer::new_for_test().unwrap();
         server.state = ServerState::Initialized;
 
         let uri = Url::parse("file:///test.toml").unwrap();
@@ -948,7 +963,7 @@ mod tests {
     /// 测试初始化响应
     #[test]
     fn test_initialize_response() {
-        let mut server = LspServer::start().unwrap();
+        let mut server = LspServer::new_for_test().unwrap();
 
         #[allow(deprecated)]
         let params = InitializeParams {
@@ -1021,7 +1036,7 @@ mod tests {
     /// 测试错误恢复
     #[test]
     fn test_error_recovery() {
-        let mut server = LspServer::start().unwrap();
+        let mut server = LspServer::new_for_test().unwrap();
         server.state = ServerState::Initialized;
 
         // 尝试修改不存在的文档（应该不会崩溃）
