@@ -20,10 +20,7 @@ impl DiagnosticEngine {
 
     /// 添加诊断
     pub fn add(&self, uri: Url, diagnostic: Diagnostic) {
-        self.diagnostics
-            .entry(uri)
-            .or_default()
-            .push(diagnostic);
+        self.diagnostics.entry(uri).or_default().push(diagnostic);
     }
 
     /// 清除文档的诊断

@@ -20,7 +20,7 @@
 //!
 //! // 初始化日志系统
 //! init_logging().expect("Failed to initialize logging");
-//! 
+//!
 //! tracing::info!("Application started");
 //! ```
 

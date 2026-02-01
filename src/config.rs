@@ -68,8 +68,6 @@ pub struct ServerConfig {
     pub schema: SchemaConfig,
 }
 
-
-
 impl ServerConfig {
     /// 从配置文件和环境变量加载配置
     ///
@@ -244,8 +242,6 @@ pub struct DiagnosticsConfig {
     /// 禁用的诊断类型列表
     pub disabled: HashSet<String>,
 }
-
-
 
 impl DiagnosticsConfig {
     pub fn merge(self, other: Self) -> Self {

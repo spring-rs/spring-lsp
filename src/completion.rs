@@ -186,7 +186,9 @@ impl CompletionEngine {
         doc: &'a TomlDocument,
         position: Position,
     ) -> Option<&'a crate::toml_analyzer::ConfigSection> {
-        doc.config_sections.values().find(|&section| self.position_in_range(position, section.range))
+        doc.config_sections
+            .values()
+            .find(|&section| self.position_in_range(position, section.range))
     }
 
     /// 查找光标所在的属性名
