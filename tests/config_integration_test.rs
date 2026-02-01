@@ -91,11 +91,11 @@ fn test_default_config_when_no_file() {
     let original_level = env::var("SPRING_LSP_LOG_LEVEL").ok();
     let original_verbose = env::var("SPRING_LSP_VERBOSE").ok();
     let original_schema = env::var("SPRING_LSP_SCHEMA_URL").ok();
-    
+
     env::remove_var("SPRING_LSP_LOG_LEVEL");
     env::remove_var("SPRING_LSP_VERBOSE");
     env::remove_var("SPRING_LSP_SCHEMA_URL");
-    
+
     // 创建空的临时目录
     let temp_dir = TempDir::new().unwrap();
     let workspace_path = temp_dir.path();
@@ -113,7 +113,7 @@ fn test_default_config_when_no_file() {
         config.schema.url,
         "https://spring-rs.github.io/config-schema.json"
     );
-    
+
     // 恢复原始环境变量
     match original_level {
         Some(v) => env::set_var("SPRING_LSP_LOG_LEVEL", v),

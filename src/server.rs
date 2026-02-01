@@ -116,7 +116,7 @@ impl LspServer {
 
         // 通过标准输入输出创建 LSP 连接
         let (connection, _io_threads) = Connection::stdio();
-        
+
         Self::new_with_connection(connection)
     }
 
@@ -125,13 +125,12 @@ impl LspServer {
         // 创建一个假的连接，用于测试
         // 我们不会实际使用这个连接发送消息
         let (connection, _io_threads) = Connection::memory();
-        
+
         Self::new_with_connection(connection)
     }
 
     /// 使用给定连接创建服务器实例
     fn new_with_connection(connection: Connection) -> Result<Self> {
-
         // 加载默认配置（在初始化时会从客户端获取工作空间路径并重新加载）
         let config = ServerConfig::load(None);
 
