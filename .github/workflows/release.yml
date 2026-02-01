@@ -16,6 +16,9 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: write  # 允许创建 release 和上传资产
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
@@ -286,8 +289,6 @@ jobs:
           prerelease: ${{ needs.version-check.outputs.is_prerelease }}
           files: release-assets/*
           draft: false
-        permissions:
-          contents: write  # 允许创建 release 和上传资产
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
