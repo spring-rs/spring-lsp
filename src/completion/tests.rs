@@ -1029,7 +1029,7 @@ mod property_tests {
     proptest! {
         #[test]
         fn prop_complete_config_prefix_returns_all_prefixes(
-            prefixes in prop::collection::vec(valid_prefix(), 1..10)
+            prefixes in prop::collection::hash_set(valid_prefix(), 1..10)
         ) {
             // 创建一个包含多个插件的 Schema
             let mut schema = crate::schema::ConfigSchema {
