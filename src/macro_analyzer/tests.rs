@@ -19,18 +19,18 @@ fn test_range() -> Range {
 
 #[test]
 fn test_http_method_from_str() {
-    assert_eq!(HttpMethod::from_str("GET"), Some(HttpMethod::Get));
-    assert_eq!(HttpMethod::from_str("get"), Some(HttpMethod::Get));
-    assert_eq!(HttpMethod::from_str("POST"), Some(HttpMethod::Post));
-    assert_eq!(HttpMethod::from_str("post"), Some(HttpMethod::Post));
-    assert_eq!(HttpMethod::from_str("PUT"), Some(HttpMethod::Put));
-    assert_eq!(HttpMethod::from_str("DELETE"), Some(HttpMethod::Delete));
-    assert_eq!(HttpMethod::from_str("PATCH"), Some(HttpMethod::Patch));
-    assert_eq!(HttpMethod::from_str("HEAD"), Some(HttpMethod::Head));
-    assert_eq!(HttpMethod::from_str("OPTIONS"), Some(HttpMethod::Options));
-    assert_eq!(HttpMethod::from_str("CONNECT"), Some(HttpMethod::Connect));
-    assert_eq!(HttpMethod::from_str("TRACE"), Some(HttpMethod::Trace));
-    assert_eq!(HttpMethod::from_str("INVALID"), None);
+    assert_eq!(HttpMethod::parse_method("GET"), Some(HttpMethod::Get));
+    assert_eq!(HttpMethod::parse_method("get"), Some(HttpMethod::Get));
+    assert_eq!(HttpMethod::parse_method("POST"), Some(HttpMethod::Post));
+    assert_eq!(HttpMethod::parse_method("post"), Some(HttpMethod::Post));
+    assert_eq!(HttpMethod::parse_method("PUT"), Some(HttpMethod::Put));
+    assert_eq!(HttpMethod::parse_method("DELETE"), Some(HttpMethod::Delete));
+    assert_eq!(HttpMethod::parse_method("PATCH"), Some(HttpMethod::Patch));
+    assert_eq!(HttpMethod::parse_method("HEAD"), Some(HttpMethod::Head));
+    assert_eq!(HttpMethod::parse_method("OPTIONS"), Some(HttpMethod::Options));
+    assert_eq!(HttpMethod::parse_method("CONNECT"), Some(HttpMethod::Connect));
+    assert_eq!(HttpMethod::parse_method("TRACE"), Some(HttpMethod::Trace));
+    assert_eq!(HttpMethod::parse_method("INVALID"), None);
 }
 
 #[test]
