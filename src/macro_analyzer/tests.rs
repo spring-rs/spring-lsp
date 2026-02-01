@@ -27,8 +27,14 @@ fn test_http_method_from_str() {
     assert_eq!(HttpMethod::parse_method("DELETE"), Some(HttpMethod::Delete));
     assert_eq!(HttpMethod::parse_method("PATCH"), Some(HttpMethod::Patch));
     assert_eq!(HttpMethod::parse_method("HEAD"), Some(HttpMethod::Head));
-    assert_eq!(HttpMethod::parse_method("OPTIONS"), Some(HttpMethod::Options));
-    assert_eq!(HttpMethod::parse_method("CONNECT"), Some(HttpMethod::Connect));
+    assert_eq!(
+        HttpMethod::parse_method("OPTIONS"),
+        Some(HttpMethod::Options)
+    );
+    assert_eq!(
+        HttpMethod::parse_method("CONNECT"),
+        Some(HttpMethod::Connect)
+    );
     assert_eq!(HttpMethod::parse_method("TRACE"), Some(HttpMethod::Trace));
     assert_eq!(HttpMethod::parse_method("INVALID"), None);
 }
