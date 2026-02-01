@@ -48,7 +48,7 @@ thiserror = "1.0"
 url = "2.5"
 
 # HTTP 客户端（用于加载 Schema）
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
 
 # 正则表达式
 regex = "1.10"
