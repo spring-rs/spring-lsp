@@ -64,9 +64,7 @@ impl LogConfig {
             .map(|v| v == "1" || v.to_lowercase() == "true")
             .unwrap_or(false);
 
-        let log_file = env::var("SPRING_LSP_LOG_FILE")
-            .ok()
-            .map(PathBuf::from);
+        let log_file = env::var("SPRING_LSP_LOG_FILE").ok().map(PathBuf::from);
 
         Self {
             level,
@@ -84,7 +82,7 @@ impl LogConfig {
 
         // 否则使用配置的日志级别
         let level = &self.level;
-        
+
         // 在详细模式下，显示所有模块的日志
         if self.verbose {
             EnvFilter::new(format!("spring_lsp={},lsp_server={}", level, level))

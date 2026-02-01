@@ -1,5 +1,5 @@
 //! 独立的宏模型测试
-//! 
+//!
 //! 这个测试文件独立于库的其他部分，专门测试宏数据模型
 
 use lsp_types::{Position, Range, Url};
@@ -103,18 +103,9 @@ pub struct AutoConfigMacro {
 /// 任务调度宏信息
 #[derive(Debug, Clone)]
 pub enum JobMacro {
-    Cron {
-        expression: String,
-        range: Range,
-    },
-    FixDelay {
-        seconds: u64,
-        range: Range,
-    },
-    FixRate {
-        seconds: u64,
-        range: Range,
-    },
+    Cron { expression: String, range: Range },
+    FixDelay { seconds: u64, range: Range },
+    FixRate { seconds: u64, range: Range },
 }
 
 /// Spring-rs 宏枚举
@@ -171,7 +162,7 @@ fn test_inject_macro_with_component() {
         component_name: Some("db_pool".to_string()),
         range: test_range(),
     };
-    
+
     assert_eq!(inject.inject_type, InjectType::Component);
     assert_eq!(inject.component_name, Some("db_pool".to_string()));
 }
@@ -183,7 +174,7 @@ fn test_inject_macro_with_config() {
         component_name: None,
         range: test_range(),
     };
-    
+
     assert_eq!(inject.inject_type, InjectType::Config);
     assert_eq!(inject.component_name, None);
 }
@@ -214,7 +205,7 @@ fn test_service_macro_with_fields() {
         ],
         range: test_range(),
     };
-    
+
     assert_eq!(service.struct_name, "UserService");
     assert_eq!(service.fields.len(), 2);
     assert_eq!(service.fields[0].name, "db");
@@ -230,7 +221,7 @@ fn test_route_macro_single_method() {
         handler_name: "list_users".to_string(),
         range: test_range(),
     };
-    
+
     assert_eq!(route.path, "/users");
     assert_eq!(route.methods.len(), 1);
     assert_eq!(route.methods[0], HttpMethod::Get);
@@ -246,7 +237,7 @@ fn test_route_macro_multiple_methods() {
         handler_name: "handle_resource".to_string(),
         range: test_range(),
     };
-    
+
     assert_eq!(route.methods.len(), 2);
     assert!(route.methods.contains(&HttpMethod::Get));
     assert!(route.methods.contains(&HttpMethod::Post));
@@ -259,7 +250,7 @@ fn test_auto_config_macro() {
         configurator_type: "WebConfigurator".to_string(),
         range: test_range(),
     };
-    
+
     assert_eq!(auto_config.configurator_type, "WebConfigurator");
 }
 
@@ -269,7 +260,7 @@ fn test_job_macro_cron() {
         expression: "0 0 * * * *".to_string(),
         range: test_range(),
     };
-    
+
     match job {
         JobMacro::Cron { expression, .. } => {
             assert_eq!(expression, "0 0 * * * *");
@@ -284,7 +275,7 @@ fn test_job_macro_fix_delay() {
         seconds: 5,
         range: test_range(),
     };
-    
+
     match job {
         JobMacro::FixDelay { seconds, .. } => {
             assert_eq!(seconds, 5);
@@ -299,7 +290,7 @@ fn test_job_macro_fix_rate() {
         seconds: 10,
         range: test_range(),
     };
-    
+
     match job {
         JobMacro::FixRate { seconds, .. } => {
             assert_eq!(seconds, 10);
@@ -337,7 +328,7 @@ fn test_spring_macro_variants() {
             range: test_range(),
         }),
     ];
-    
+
     assert_eq!(macros.len(), 5);
 }
 
@@ -347,17 +338,15 @@ fn test_rust_document() {
     let doc = RustDocument {
         uri: uri.clone(),
         content: "fn main() {}".to_string(),
-        macros: vec![
-            SpringMacro::Route(RouteMacro {
-                path: "/".to_string(),
-                methods: vec![HttpMethod::Get],
-                middlewares: vec![],
-                handler_name: "index".to_string(),
-                range: test_range(),
-            }),
-        ],
+        macros: vec![SpringMacro::Route(RouteMacro {
+            path: "/".to_string(),
+            methods: vec![HttpMethod::Get],
+            middlewares: vec![],
+            handler_name: "index".to_string(),
+            range: test_range(),
+        })],
     };
-    
+
     assert_eq!(doc.uri, uri);
     assert_eq!(doc.content, "fn main() {}");
     assert_eq!(doc.macros.len(), 1);
@@ -370,7 +359,7 @@ fn test_field_without_inject() {
         type_name: "String".to_string(),
         inject: None,
     };
-    
+
     assert_eq!(field.name, "name");
     assert_eq!(field.type_name, "String");
     assert!(field.inject.is_none());
@@ -385,7 +374,7 @@ fn test_route_with_path_parameters() {
         handler_name: "get_user_post".to_string(),
         range: test_range(),
     };
-    
+
     assert_eq!(route.path, "/users/{id}/posts/{post_id}");
     assert!(route.path.contains("{id}"));
     assert!(route.path.contains("{post_id}"));

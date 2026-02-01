@@ -16,19 +16,19 @@
 //! - **Analysis Modules**: 各种分析功能模块
 //! - **Foundation Layer**: 基础设施和工具
 
-pub mod server;
+pub mod completion;
+pub mod config;
+pub mod di_validator;
+pub mod diagnostic;
 pub mod document;
-pub mod toml_analyzer;
-pub mod schema;
+pub mod error;
+pub mod index;
+pub mod logging;
 pub mod macro_analyzer;
 pub mod route;
-pub mod completion;
-pub mod diagnostic;
-pub mod index;
-pub mod error;
-pub mod di_validator;
-pub mod logging;
-pub mod config;
+pub mod schema;
+pub mod server;
 pub mod status;
+pub mod toml_analyzer;
 
 pub use error::{Error, Result};

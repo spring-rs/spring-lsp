@@ -72,12 +72,7 @@ fn test_document_open_multiple_documents() {
     // 打开多个文档
     for i in 0..10 {
         let uri: Url = format!("file:///test{}.toml", i).parse().unwrap();
-        manager.open(
-            uri.clone(),
-            1,
-            format!("content {}", i),
-            "toml".to_string(),
-        );
+        manager.open(uri.clone(), 1, format!("content {}", i), "toml".to_string());
     }
 
     // 验证所有文档都已缓存
@@ -94,12 +89,22 @@ fn test_document_reopen_updates_content() {
     let uri: Url = "file:///test.toml".parse().unwrap();
 
     // 第一次打开
-    manager.open(uri.clone(), 1, "old content".to_string(), "toml".to_string());
+    manager.open(
+        uri.clone(),
+        1,
+        "old content".to_string(),
+        "toml".to_string(),
+    );
     let doc1 = manager.get(&uri).unwrap();
     assert_eq!(doc1.content, "old content");
 
     // 重新打开（模拟编辑器重新加载文件）
-    manager.open(uri.clone(), 2, "new content".to_string(), "toml".to_string());
+    manager.open(
+        uri.clone(),
+        2,
+        "new content".to_string(),
+        "toml".to_string(),
+    );
     let doc2 = manager.get(&uri).unwrap();
     assert_eq!(doc2.content, "new content");
     assert_eq!(doc2.version, 2);
@@ -110,7 +115,12 @@ fn test_incremental_update_single_line_replace() {
     let manager = DocumentManager::new();
     let uri: Url = "file:///test.toml".parse().unwrap();
 
-    manager.open(uri.clone(), 1, "hello world".to_string(), "toml".to_string());
+    manager.open(
+        uri.clone(),
+        1,
+        "hello world".to_string(),
+        "toml".to_string(),
+    );
 
     // 替换 "world" 为 "rust"
     let changes = vec![TextDocumentContentChangeEvent {
@@ -350,7 +360,12 @@ fn test_full_content_update() {
     let manager = DocumentManager::new();
     let uri: Url = "file:///test.toml".parse().unwrap();
 
-    manager.open(uri.clone(), 1, "old content".to_string(), "toml".to_string());
+    manager.open(
+        uri.clone(),
+        1,
+        "old content".to_string(),
+        "toml".to_string(),
+    );
 
     // 全量更新（range 为 None）
     let changes = vec![TextDocumentContentChangeEvent {
@@ -447,12 +462,7 @@ fn test_document_close_multiple_documents() {
         .collect();
 
     for (i, uri) in uris.iter().enumerate() {
-        manager.open(
-            uri.clone(),
-            1,
-            format!("content {}", i),
-            "toml".to_string(),
-        );
+        manager.open(uri.clone(), 1, format!("content {}", i), "toml".to_string());
     }
 
     // 关闭部分文档
@@ -643,7 +653,7 @@ proptest! {
         // 打开多个文档（使用 HashMap 跟踪最后一次打开的内容，因为重复的 URI 会覆盖）
         use std::collections::HashMap;
         let mut expected: HashMap<Url, String> = HashMap::new();
-        
+
         for i in 0..count {
             manager.open(
                 uris[i].clone(),

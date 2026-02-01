@@ -200,9 +200,18 @@ trigger_characters = ["[", "@", ":"]
 
     // 验证自定义触发字符
     assert_eq!(config.completion.trigger_characters.len(), 3);
-    assert!(config.completion.trigger_characters.contains(&"[".to_string()));
-    assert!(config.completion.trigger_characters.contains(&"@".to_string()));
-    assert!(config.completion.trigger_characters.contains(&":".to_string()));
+    assert!(config
+        .completion
+        .trigger_characters
+        .contains(&"[".to_string()));
+    assert!(config
+        .completion
+        .trigger_characters
+        .contains(&"@".to_string()));
+    assert!(config
+        .completion
+        .trigger_characters
+        .contains(&":".to_string()));
 }
 
 #[test]
@@ -223,6 +232,9 @@ url = "file:///opt/spring-lsp/custom-schema.json"
     let config = ServerConfig::load(Some(workspace_path));
 
     // 验证本地 Schema URL
-    assert_eq!(config.schema.url, "file:///opt/spring-lsp/custom-schema.json");
+    assert_eq!(
+        config.schema.url,
+        "file:///opt/spring-lsp/custom-schema.json"
+    );
     assert!(config.validate().is_ok());
 }

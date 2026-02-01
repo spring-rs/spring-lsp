@@ -1,11 +1,13 @@
 use lsp_types::Position;
-use spring_lsp::schema::{ConfigSchema, PluginSchema, PropertySchema, SchemaProvider, TypeInfo, Value};
+use spring_lsp::schema::{
+    ConfigSchema, PluginSchema, PropertySchema, SchemaProvider, TypeInfo, Value,
+};
 use spring_lsp::toml_analyzer::TomlAnalyzer;
 use std::collections::HashMap;
 
 fn create_test_schema_provider() -> SchemaProvider {
     let mut plugins = HashMap::new();
-    
+
     let mut web_properties = HashMap::new();
     web_properties.insert(
         "host".to_string(),
@@ -22,7 +24,7 @@ fn create_test_schema_provider() -> SchemaProvider {
             deprecated: None,
         },
     );
-    
+
     plugins.insert(
         "web".to_string(),
         PluginSchema {
@@ -30,7 +32,7 @@ fn create_test_schema_provider() -> SchemaProvider {
             properties: web_properties,
         },
     );
-    
+
     let schema = ConfigSchema { plugins };
     SchemaProvider::from_schema(schema)
 }
@@ -38,17 +40,17 @@ fn create_test_schema_provider() -> SchemaProvider {
 fn main() {
     let schema_provider = create_test_schema_provider();
     let analyzer = TomlAnalyzer::new(schema_provider);
-    
+
     let toml_content = r#"
 [web]
 host = "localhost"
 port = 8080
 "#;
-    
+
     let doc = analyzer.parse(toml_content).unwrap();
-    
+
     println!("Config sections: {:?}", doc.config_sections.keys());
-    
+
     for (prefix, section) in &doc.config_sections {
         println!("\nSection: {}", prefix);
         println!("  Range: {:?}", section.range);
@@ -58,19 +60,37 @@ port = 8080
             println!("    Value: {:?}", property.value);
         }
     }
-    
+
     // Test hover at different positions
     let positions = vec![
-        Position { line: 0, character: 0 },
-        Position { line: 1, character: 0 },
-        Position { line: 2, character: 0 },
-        Position { line: 2, character: 5 },
-        Position { line: 2, character: 10 },
+        Position {
+            line: 0,
+            character: 0,
+        },
+        Position {
+            line: 1,
+            character: 0,
+        },
+        Position {
+            line: 2,
+            character: 0,
+        },
+        Position {
+            line: 2,
+            character: 5,
+        },
+        Position {
+            line: 2,
+            character: 10,
+        },
     ];
-    
+
     for pos in positions {
         println!("\nTesting position: {:?}", pos);
         let hover = analyzer.hover(&doc, pos);
-        println!("  Hover result: {}", if hover.is_some() { "Some" } else { "None" });
+        println!(
+            "  Hover result: {}",
+            if hover.is_some() { "Some" } else { "None" }
+        );
     }
 }

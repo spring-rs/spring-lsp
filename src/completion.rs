@@ -1,13 +1,15 @@
 //! 智能补全引擎模块
 
-use lsp_types::{CompletionItem, CompletionItemKind, Documentation, MarkupContent, MarkupKind, Position, Range};
+use lsp_types::{
+    CompletionItem, CompletionItemKind, Documentation, MarkupContent, MarkupKind, Position, Range,
+};
 
 use crate::macro_analyzer::SpringMacro;
-use crate::toml_analyzer::{TomlAnalyzer, TomlDocument};
 use crate::schema::SchemaProvider;
+use crate::toml_analyzer::{TomlAnalyzer, TomlDocument};
 
 /// 补全上下文
-/// 
+///
 /// 提供补全请求的上下文信息，用于确定补全类型
 #[derive(Debug, Clone)]
 pub enum CompletionContext {
@@ -20,7 +22,7 @@ pub enum CompletionContext {
 }
 
 /// 补全引擎
-/// 
+///
 /// 提供智能补全功能，支持 TOML 配置文件和 Rust 宏的补全
 pub struct CompletionEngine {
     /// TOML 分析器
@@ -29,29 +31,29 @@ pub struct CompletionEngine {
 
 impl CompletionEngine {
     /// 创建新的补全引擎
-    /// 
+    ///
     /// # 参数
-    /// 
+    ///
     /// * `schema_provider` - Schema 提供者，用于 TOML 配置补全
     pub fn new(schema_provider: SchemaProvider) -> Self {
         Self {
             toml_analyzer: TomlAnalyzer::new(schema_provider),
         }
     }
-    
+
     /// 提供补全
-    /// 
+    ///
     /// 根据文档类型和位置提供相应的补全项
-    /// 
+    ///
     /// # 参数
-    /// 
+    ///
     /// * `context` - 补全上下文，指示补全类型
     /// * `position` - 光标位置
     /// * `toml_doc` - TOML 文档（可选，用于 TOML 补全）
     /// * `macro_info` - 宏信息（可选，用于宏补全）
-    /// 
+    ///
     /// # 返回
-    /// 
+    ///
     /// 补全项列表
     pub fn complete(
         &self,
@@ -78,75 +80,87 @@ impl CompletionEngine {
             CompletionContext::Unknown => Vec::new(),
         }
     }
-    
+
     /// TOML 配置补全（公共方法）
-    /// 
+    ///
     /// 为 TOML 配置文件提供补全，支持：
     /// - 配置前缀补全（在 `[` 后）
     /// - 配置项补全（在配置节内）
     /// - 枚举值补全
     /// - 环境变量补全（在 `${` 后）
-    /// 
+    ///
     /// # 参数
-    /// 
+    ///
     /// * `doc` - TOML 文档
     /// * `position` - 光标位置
-    /// 
+    ///
     /// # 返回
-    /// 
+    ///
     /// 补全项列表
-    pub fn complete_toml_document(&self, doc: &TomlDocument, position: Position) -> Vec<CompletionItem> {
+    pub fn complete_toml_document(
+        &self,
+        doc: &TomlDocument,
+        position: Position,
+    ) -> Vec<CompletionItem> {
         self.complete_toml(doc, position)
     }
 
     /// TOML 配置补全（内部方法）
-    /// 
+    ///
     /// 为 TOML 配置文件提供补全，支持：
     /// - 配置前缀补全（在 `[` 后）
     /// - 配置项补全（在配置节内）
     /// - 枚举值补全
     /// - 环境变量补全（在 `${` 后）
-    /// 
+    ///
     /// # 参数
-    /// 
+    ///
     /// * `doc` - TOML 文档
     /// * `position` - 光标位置
-    /// 
+    ///
     /// # 返回
-    /// 
+    ///
     /// 补全项列表
     fn complete_toml(&self, doc: &TomlDocument, position: Position) -> Vec<CompletionItem> {
         // 1. 检查是否在配置前缀位置（[之后）
         if self.is_prefix_position(doc, position) {
             return self.complete_config_prefix();
         }
-        
+
         // 2. 检查是否在环境变量位置（${之后）
         if self.is_env_var_position(doc, position) {
             return self.complete_env_var();
         }
-        
+
         // 3. 检查是否在配置节内
         if let Some(section) = self.find_section_at_position(doc, position) {
             // 检查是否在值位置（可能需要枚举值补全）
             if let Some(property_name) = self.find_property_at_position(&section, position) {
-                if let Some(property_schema) = self.toml_analyzer.schema_provider().get_property_schema(&section.prefix, &property_name) {
+                if let Some(property_schema) = self
+                    .toml_analyzer
+                    .schema_provider()
+                    .get_property_schema(&section.prefix, &property_name)
+                {
                     // 提供枚举值补全
-                    if let crate::schema::TypeInfo::String { enum_values: Some(ref values), .. } = property_schema.type_info {
+                    if let crate::schema::TypeInfo::String {
+                        enum_values: Some(ref values),
+                        ..
+                    } = property_schema.type_info
+                    {
                         return self.complete_enum_values(values);
                     }
                 }
             }
-            
+
             // 提供配置项补全
             return self.complete_config_properties(&section);
         }
-        
+
         Vec::new()
     }
-    
+
     /// 检查是否在配置前缀位置
-    /// 
+    ///
     /// 判断光标是否在 `[` 字符之后，需要补全配置前缀
     fn is_prefix_position(&self, _doc: &TomlDocument, _position: Position) -> bool {
         // 简化实现：这里需要检查光标前的字符是否是 `[`
@@ -154,20 +168,24 @@ impl CompletionEngine {
         // 目前返回 false，让测试可以通过其他路径
         false
     }
-    
+
     /// 检查是否在环境变量位置
-    /// 
+    ///
     /// 判断光标是否在 `${` 之后，需要补全环境变量名
     fn is_env_var_position(&self, _doc: &TomlDocument, _position: Position) -> bool {
         // 简化实现：这里需要检查光标前的字符是否是 `${`
         // 在实际实现中，应该解析文档内容来判断
         false
     }
-    
+
     /// 查找光标所在的配置节
-    /// 
+    ///
     /// 根据光标位置查找对应的配置节
-    fn find_section_at_position<'a>(&self, doc: &'a TomlDocument, position: Position) -> Option<&'a crate::toml_analyzer::ConfigSection> {
+    fn find_section_at_position<'a>(
+        &self,
+        doc: &'a TomlDocument,
+        position: Position,
+    ) -> Option<&'a crate::toml_analyzer::ConfigSection> {
         for section in doc.config_sections.values() {
             // 检查位置是否在配置节范围内
             if self.position_in_range(position, section.range) {
@@ -176,11 +194,15 @@ impl CompletionEngine {
         }
         None
     }
-    
+
     /// 查找光标所在的属性名
-    /// 
+    ///
     /// 在配置节中查找光标位置对应的属性名（用于枚举值补全）
-    fn find_property_at_position(&self, section: &crate::toml_analyzer::ConfigSection, position: Position) -> Option<String> {
+    fn find_property_at_position(
+        &self,
+        section: &crate::toml_analyzer::ConfigSection,
+        position: Position,
+    ) -> Option<String> {
         for (key, property) in &section.properties {
             // 检查位置是否在属性值范围内
             if self.position_in_range(position, property.range) {
@@ -189,7 +211,7 @@ impl CompletionEngine {
         }
         None
     }
-    
+
     /// 检查位置是否在范围内
     fn position_in_range(&self, position: Position, range: Range) -> bool {
         if position.line < range.start.line || position.line > range.end.line {
@@ -203,23 +225,26 @@ impl CompletionEngine {
         }
         true
     }
-    
+
     /// 补全配置前缀
-    /// 
+    ///
     /// 提供所有可用的配置前缀（插件名称）
     fn complete_config_prefix(&self) -> Vec<CompletionItem> {
         let prefixes = self.toml_analyzer.schema_provider().get_all_prefixes();
-        
+
         prefixes
             .into_iter()
             .map(|prefix: String| {
-                let plugin_schema = self.toml_analyzer.schema_provider().get_plugin_schema(&prefix);
+                let plugin_schema = self
+                    .toml_analyzer
+                    .schema_provider()
+                    .get_plugin_schema(&prefix);
                 let description = plugin_schema
                     .as_ref()
                     .and_then(|s| s.properties.values().next())
                     .map(|p| p.description.clone())
                     .unwrap_or_else(|| format!("{} 插件配置", prefix));
-                
+
                 CompletionItem {
                     label: prefix.clone(),
                     kind: Some(CompletionItemKind::MODULE),
@@ -243,33 +268,40 @@ impl CompletionEngine {
             })
             .collect()
     }
-    
+
     /// 补全配置项
-    /// 
+    ///
     /// 在配置节内提供配置项补全，自动去重已存在的配置项
-    fn complete_config_properties(&self, section: &crate::toml_analyzer::ConfigSection) -> Vec<CompletionItem> {
-        let plugin_schema = match self.toml_analyzer.schema_provider().get_plugin_schema(&section.prefix) {
+    fn complete_config_properties(
+        &self,
+        section: &crate::toml_analyzer::ConfigSection,
+    ) -> Vec<CompletionItem> {
+        let plugin_schema = match self
+            .toml_analyzer
+            .schema_provider()
+            .get_plugin_schema(&section.prefix)
+        {
             Some(schema) => schema,
             None => return Vec::new(),
         };
-        
+
         let mut completions = Vec::new();
-        
+
         for (key, property_schema) in &plugin_schema.properties {
             // 去重：如果配置项已存在，不提供补全
             if section.properties.contains_key(key.as_str()) {
                 continue;
             }
-            
+
             let type_hint = self.type_info_to_hint(&property_schema.type_info);
             let default_value = property_schema
                 .default
                 .as_ref()
                 .map(|v| self.value_to_string(v))
                 .unwrap_or_else(|| self.type_info_to_default(&property_schema.type_info));
-            
+
             let insert_text = format!("{} = {}  # {}", key, default_value, type_hint);
-            
+
             completions.push(CompletionItem {
                 label: key.clone(),
                 kind: Some(CompletionItemKind::PROPERTY),
@@ -301,12 +333,12 @@ impl CompletionEngine {
                 ..Default::default()
             });
         }
-        
+
         completions
     }
-    
+
     /// 补全枚举值
-    /// 
+    ///
     /// 为具有枚举类型的配置项提供值补全
     fn complete_enum_values(&self, values: &[String]) -> Vec<CompletionItem> {
         values
@@ -325,9 +357,9 @@ impl CompletionEngine {
             })
             .collect()
     }
-    
+
     /// 补全环境变量
-    /// 
+    ///
     /// 提供常见的环境变量名称补全
     pub fn complete_env_var(&self) -> Vec<CompletionItem> {
         let common_vars = vec![
@@ -339,7 +371,7 @@ impl CompletionEngine {
             ("ENV", "运行环境"),
             ("DEBUG", "调试模式"),
         ];
-        
+
         common_vars
             .into_iter()
             .map(|(name, description)| CompletionItem {
@@ -363,11 +395,14 @@ impl CompletionEngine {
             })
             .collect()
     }
-    
+
     /// 将类型信息转换为类型提示字符串
     fn type_info_to_hint(&self, type_info: &crate::schema::TypeInfo) -> String {
         match type_info {
-            crate::schema::TypeInfo::String { enum_values: Some(values), .. } => {
+            crate::schema::TypeInfo::String {
+                enum_values: Some(values),
+                ..
+            } => {
                 format!("enum: {:?}", values)
             }
             crate::schema::TypeInfo::String { .. } => "string".to_string(),
@@ -384,11 +419,14 @@ impl CompletionEngine {
             crate::schema::TypeInfo::Object { .. } => "object".to_string(),
         }
     }
-    
+
     /// 将类型信息转换为默认值字符串
     fn type_info_to_default(&self, type_info: &crate::schema::TypeInfo) -> String {
         match type_info {
-            crate::schema::TypeInfo::String { enum_values: Some(values), .. } => {
+            crate::schema::TypeInfo::String {
+                enum_values: Some(values),
+                ..
+            } => {
                 if let Some(first) = values.first() {
                     format!("\"{}\"", first)
                 } else {
@@ -403,7 +441,7 @@ impl CompletionEngine {
             crate::schema::TypeInfo::Object { .. } => "{}".to_string(),
         }
     }
-    
+
     /// 将 Schema 值转换为字符串
     fn value_to_string(&self, value: &crate::schema::Value) -> String {
         match value {
@@ -564,7 +602,7 @@ impl CompletionEngine {
                                 App::new().add_plugin(WebPlugin).run().await\n\
                             }\n\
                             ```"
-                        .to_string(),
+                    .to_string(),
                 })),
                 insert_text: Some("WebConfigurator".to_string()),
                 ..Default::default()
@@ -584,7 +622,7 @@ impl CompletionEngine {
                                 App::new().add_plugin(JobPlugin).run().await\n\
                             }\n\
                             ```"
-                        .to_string(),
+                    .to_string(),
                 })),
                 insert_text: Some("JobConfigurator".to_string()),
                 ..Default::default()
@@ -604,7 +642,7 @@ impl CompletionEngine {
                                 App::new().add_plugin(StreamPlugin).run().await\n\
                             }\n\
                             ```"
-                        .to_string(),
+                    .to_string(),
                 })),
                 insert_text: Some("StreamConfigurator".to_string()),
                 ..Default::default()
@@ -667,7 +705,7 @@ impl CompletionEngine {
                         async fn get_user(Path(id): Path<i64>) -> impl IntoResponse {\n\
                         }\n\
                         ```"
-                    .to_string(),
+                .to_string(),
             })),
             insert_text: Some("{${1:id}}".to_string()),
             insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
@@ -697,7 +735,7 @@ impl CompletionEngine {
                             async fn hourly_job() {\n\
                             }\n\
                             ```"
-                        .to_string(),
+                    .to_string(),
                 })),
                 insert_text: Some("\"0 0 * * * *\"".to_string()),
                 ..Default::default()
@@ -716,7 +754,7 @@ impl CompletionEngine {
                             async fn daily_job() {\n\
                             }\n\
                             ```"
-                        .to_string(),
+                    .to_string(),
                 })),
                 insert_text: Some("\"0 0 0 * * *\"".to_string()),
                 ..Default::default()
@@ -735,7 +773,7 @@ impl CompletionEngine {
                             async fn every_five_minutes() {\n\
                             }\n\
                             ```"
-                        .to_string(),
+                    .to_string(),
                 })),
                 insert_text: Some("\"0 */5 * * * *\"".to_string()),
                 ..Default::default()
@@ -754,7 +792,7 @@ impl CompletionEngine {
                             async fn delayed_job() {\n\
                             }\n\
                             ```"
-                        .to_string(),
+                    .to_string(),
                 })),
                 insert_text: Some("5".to_string()),
                 ..Default::default()
@@ -778,7 +816,7 @@ impl CompletionEngine {
                             async fn periodic_job() {\n\
                             }\n\
                             ```"
-                        .to_string(),
+                    .to_string(),
                 })),
                 insert_text: Some("10".to_string()),
                 ..Default::default()
@@ -802,7 +840,7 @@ impl CompletionEngine {
                             async fn periodic_job() {\n\
                             }\n\
                             ```"
-                        .to_string(),
+                    .to_string(),
                 })),
                 insert_text: Some("60".to_string()),
                 ..Default::default()

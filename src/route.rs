@@ -282,7 +282,7 @@ impl RouteNavigator {
     /// let navigator = RouteNavigator::new();
     /// let conflicts = navigator.detect_conflicts();
     /// for conflict in conflicts {
-    ///     println!("Route conflict detected between routes {} and {}", 
+    ///     println!("Route conflict detected between routes {} and {}",
     ///              conflict.index1, conflict.index2);
     /// }
     /// ```
@@ -337,8 +337,29 @@ impl RouteNavigator {
             if !ch.is_ascii_alphanumeric()
                 && !matches!(
                     ch,
-                    '-' | '_' | '.' | '~' | ':' | '/' | '?' | '#' | '[' | ']' | '@' | '!' | '$'
-                        | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | ';' | '=' | '{' | '}'
+                    '-' | '_'
+                        | '.'
+                        | '~'
+                        | ':'
+                        | '/'
+                        | '?'
+                        | '#'
+                        | '['
+                        | ']'
+                        | '@'
+                        | '!'
+                        | '$'
+                        | '&'
+                        | '\''
+                        | '('
+                        | ')'
+                        | '*'
+                        | '+'
+                        | ','
+                        | ';'
+                        | '='
+                        | '{'
+                        | '}'
                 )
             {
                 diagnostics.push(lsp_types::Diagnostic {
@@ -385,10 +406,7 @@ impl RouteNavigator {
                             code: Some(lsp_types::NumberOrString::String(
                                 "nested-path-param".to_string(),
                             )),
-                            message: format!(
-                                "路径参数不能嵌套 (位置 {})。正确格式：{{param}}",
-                                i
-                            ),
+                            message: format!("路径参数不能嵌套 (位置 {})。正确格式：{{param}}", i),
                             source: Some("spring-lsp".to_string()),
                             ..Default::default()
                         });
@@ -786,12 +804,10 @@ mod tests {
             methods: vec![HttpMethod::Get],
             handler: HandlerInfo {
                 function_name: "get_user".to_string(),
-                parameters: vec![
-                    Parameter {
-                        name: "id".to_string(),
-                        type_name: "i64".to_string(),
-                    },
-                ],
+                parameters: vec![Parameter {
+                    name: "id".to_string(),
+                    type_name: "i64".to_string(),
+                }],
             },
             location: Location {
                 uri: Url::parse("file:///test.rs").unwrap(),
@@ -911,7 +927,7 @@ mod tests {
     #[test]
     fn test_route_index_with_routes() {
         let mut index = RouteIndex::new();
-        
+
         // 添加路由
         let route1 = RouteInfo {
             path: "/users".to_string(),
@@ -934,7 +950,7 @@ mod tests {
                 },
             },
         };
-        
+
         let route2 = RouteInfo {
             path: "/users/{id}".to_string(),
             methods: vec![HttpMethod::Get],
@@ -956,14 +972,14 @@ mod tests {
                 },
             },
         };
-        
+
         index.routes.push(route1);
         index.routes.push(route2);
-        
+
         // 构建路径映射
         index.path_map.insert("/users".to_string(), vec![0]);
         index.path_map.insert("/users/{id}".to_string(), vec![1]);
-        
+
         assert_eq!(index.routes.len(), 2);
         assert_eq!(index.path_map.len(), 2);
         assert_eq!(index.path_map.get("/users"), Some(&vec![0]));
@@ -974,72 +990,87 @@ mod tests {
     fn test_build_index_empty_documents() {
         let mut navigator = RouteNavigator::new();
         let documents = vec![];
-        
+
         navigator.build_index(&documents);
-        
+
         assert_eq!(navigator.index.routes.len(), 0);
         assert_eq!(navigator.index.path_map.len(), 0);
     }
 
     #[test]
     fn test_build_index_single_route() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route_macro = RouteMacro {
             path: "/users".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route_macro)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         assert_eq!(navigator.index.routes.len(), 1);
         assert_eq!(navigator.index.routes[0].path, "/users");
         assert_eq!(navigator.index.routes[0].methods.len(), 1);
         assert_eq!(navigator.index.routes[0].methods[0], HttpMethod::Get);
-        assert_eq!(navigator.index.routes[0].handler.function_name, "list_users");
+        assert_eq!(
+            navigator.index.routes[0].handler.function_name,
+            "list_users"
+        );
         assert_eq!(navigator.index.path_map.len(), 1);
         assert_eq!(navigator.index.path_map.get("/users"), Some(&vec![0]));
     }
 
     #[test]
     fn test_build_index_with_path_parameters() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route_macro = RouteMacro {
             path: "/users/{id}".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route_macro)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         assert_eq!(navigator.index.routes.len(), 1);
         assert_eq!(navigator.index.routes[0].path, "/users/{id}");
         assert_eq!(navigator.index.routes[0].handler.parameters.len(), 1);
@@ -1048,41 +1079,53 @@ mod tests {
 
     #[test]
     fn test_build_index_multiple_path_parameters() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route_macro = RouteMacro {
             path: "/users/{user_id}/posts/{post_id}".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user_post".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route_macro)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         assert_eq!(navigator.index.routes.len(), 1);
         assert_eq!(navigator.index.routes[0].handler.parameters.len(), 2);
-        assert_eq!(navigator.index.routes[0].handler.parameters[0].name, "user_id");
-        assert_eq!(navigator.index.routes[0].handler.parameters[1].name, "post_id");
+        assert_eq!(
+            navigator.index.routes[0].handler.parameters[0].name,
+            "user_id"
+        );
+        assert_eq!(
+            navigator.index.routes[0].handler.parameters[1].name,
+            "post_id"
+        );
     }
 
     #[test]
     fn test_build_index_multi_method_route() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         // 路由宏包含多个 HTTP 方法
         let route_macro = RouteMacro {
             path: "/users".to_string(),
@@ -1090,69 +1133,93 @@ mod tests {
             middlewares: vec![],
             handler_name: "handle_users".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route_macro)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         // 应该为每个方法创建独立的路由条目
         assert_eq!(navigator.index.routes.len(), 2);
         assert_eq!(navigator.index.routes[0].methods.len(), 1);
         assert_eq!(navigator.index.routes[0].methods[0], HttpMethod::Get);
         assert_eq!(navigator.index.routes[1].methods.len(), 1);
         assert_eq!(navigator.index.routes[1].methods[0], HttpMethod::Post);
-        
+
         // 两个路由应该映射到同一个路径
         assert_eq!(navigator.index.path_map.get("/users"), Some(&vec![0, 1]));
     }
 
     #[test]
     fn test_build_index_multiple_routes() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route1 = RouteMacro {
             path: "/users".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let route2 = RouteMacro {
             path: "/users/{id}".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
             range: Range {
-                start: Position { line: 20, character: 0 },
-                end: Position { line: 25, character: 0 },
+                start: Position {
+                    line: 20,
+                    character: 0,
+                },
+                end: Position {
+                    line: 25,
+                    character: 0,
+                },
             },
         };
-        
+
         let route3 = RouteMacro {
             path: "/posts".to_string(),
             methods: vec![HttpMethod::Get, HttpMethod::Post],
             middlewares: vec![],
             handler_name: "handle_posts".to_string(),
             range: Range {
-                start: Position { line: 30, character: 0 },
-                end: Position { line: 35, character: 0 },
+                start: Position {
+                    line: 30,
+                    character: 0,
+                },
+                end: Position {
+                    line: 35,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
@@ -1162,9 +1229,9 @@ mod tests {
                 SpringMacro::Route(route3),
             ],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         // 应该有 4 个路由条目（route3 有 2 个方法）
         assert_eq!(navigator.index.routes.len(), 4);
         assert_eq!(navigator.index.path_map.len(), 3);
@@ -1175,56 +1242,68 @@ mod tests {
 
     #[test]
     fn test_build_index_multiple_documents() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route1 = RouteMacro {
             path: "/users".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc1 = RustDocument {
             uri: Url::parse("file:///users.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route1)],
         };
-        
+
         let route2 = RouteMacro {
             path: "/posts".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_posts".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc2 = RustDocument {
             uri: Url::parse("file:///posts.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route2)],
         };
-        
+
         navigator.build_index(&[doc1, doc2]);
-        
+
         assert_eq!(navigator.index.routes.len(), 2);
         assert_eq!(navigator.index.path_map.len(), 2);
     }
 
     #[test]
     fn test_build_index_rebuild_clears_old_index() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         // 第一次构建
         let route1 = RouteMacro {
             path: "/users".to_string(),
@@ -1232,20 +1311,26 @@ mod tests {
             middlewares: vec![],
             handler_name: "list_users".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc1 = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route1)],
         };
-        
+
         navigator.build_index(&[doc1]);
         assert_eq!(navigator.index.routes.len(), 1);
-        
+
         // 第二次构建（应该清空旧索引）
         let route2 = RouteMacro {
             path: "/posts".to_string(),
@@ -1253,19 +1338,25 @@ mod tests {
             middlewares: vec![],
             handler_name: "list_posts".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc2 = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route2)],
         };
-        
+
         navigator.build_index(&[doc2]);
-        
+
         // 应该只有新的路由
         assert_eq!(navigator.index.routes.len(), 1);
         assert_eq!(navigator.index.routes[0].path, "/posts");
@@ -1309,7 +1400,8 @@ mod tests {
     #[test]
     fn test_parse_path_parameters_complex_path() {
         let navigator = RouteNavigator::new();
-        let params = navigator.parse_path_parameters("/api/v1/users/{user_id}/posts/{post_id}/comments/{comment_id}");
+        let params = navigator
+            .parse_path_parameters("/api/v1/users/{user_id}/posts/{post_id}/comments/{comment_id}");
         assert_eq!(params.len(), 3);
         assert_eq!(params[0], "user_id");
         assert_eq!(params[1], "post_id");
@@ -1329,43 +1421,52 @@ mod tests {
 
     #[test]
     fn test_get_all_routes() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route1 = RouteMacro {
             path: "/users".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let route2 = RouteMacro {
             path: "/posts".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_posts".to_string(),
             range: Range {
-                start: Position { line: 20, character: 0 },
-                end: Position { line: 25, character: 0 },
+                start: Position {
+                    line: 20,
+                    character: 0,
+                },
+                end: Position {
+                    line: 25,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
-            macros: vec![
-                SpringMacro::Route(route1),
-                SpringMacro::Route(route2),
-            ],
+            macros: vec![SpringMacro::Route(route1), SpringMacro::Route(route2)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let routes = navigator.get_all_routes();
         assert_eq!(routes.len(), 2);
         assert_eq!(routes[0].path, "/users");
@@ -1381,17 +1482,17 @@ mod tests {
 
     #[test]
     fn test_find_routes_fuzzy_match() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let routes_data = vec![
             ("/users", "list_users"),
             ("/users/{id}", "get_user"),
             ("/posts", "list_posts"),
             ("/api/users", "api_list_users"),
         ];
-        
+
         let macros: Vec<_> = routes_data
             .into_iter()
             .map(|(path, handler)| {
@@ -1401,29 +1502,35 @@ mod tests {
                     middlewares: vec![],
                     handler_name: handler.to_string(),
                     range: Range {
-                        start: Position { line: 0, character: 0 },
-                        end: Position { line: 0, character: 0 },
+                        start: Position {
+                            line: 0,
+                            character: 0,
+                        },
+                        end: Position {
+                            line: 0,
+                            character: 0,
+                        },
                     },
                 })
             })
             .collect();
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros,
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         // 模糊匹配 "users"
         let routes = navigator.find_routes("users");
         assert_eq!(routes.len(), 3); // /users, /users/{id}, /api/users
-        
+
         // 模糊匹配 "posts"
         let routes = navigator.find_routes("posts");
         assert_eq!(routes.len(), 1); // /posts
-        
+
         // 模糊匹配 "/api"
         let routes = navigator.find_routes("/api");
         assert_eq!(routes.len(), 1); // /api/users
@@ -1431,10 +1538,10 @@ mod tests {
 
     #[test]
     fn test_find_routes_regex_match() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let routes_data = vec![
             ("/users", "list_users"),
             ("/users/{id}", "get_user"),
@@ -1442,7 +1549,7 @@ mod tests {
             ("/api/v1/users", "api_v1_users"),
             ("/api/v2/users", "api_v2_users"),
         ];
-        
+
         let macros: Vec<_> = routes_data
             .into_iter()
             .map(|(path, handler)| {
@@ -1452,29 +1559,35 @@ mod tests {
                     middlewares: vec![],
                     handler_name: handler.to_string(),
                     range: Range {
-                        start: Position { line: 0, character: 0 },
-                        end: Position { line: 0, character: 0 },
+                        start: Position {
+                            line: 0,
+                            character: 0,
+                        },
+                        end: Position {
+                            line: 0,
+                            character: 0,
+                        },
                     },
                 })
             })
             .collect();
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros,
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         // 正则表达式匹配以 /api 开头的路由
         let routes = navigator.find_routes("regex:^/api/.*");
         assert_eq!(routes.len(), 2); // /api/v1/users, /api/v2/users
-        
+
         // 正则表达式匹配包含参数的路由
         let routes = navigator.find_routes("regex:.*\\{.*\\}.*");
         assert_eq!(routes.len(), 1); // /users/{id}
-        
+
         // 正则表达式匹配以 /users 开头的路由
         let routes = navigator.find_routes("regex:^/users");
         assert_eq!(routes.len(), 2); // /users, /users/{id}
@@ -1482,29 +1595,35 @@ mod tests {
 
     #[test]
     fn test_find_routes_regex_invalid() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/users".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
             range: Range {
-                start: Position { line: 0, character: 0 },
-                end: Position { line: 0, character: 0 },
+                start: Position {
+                    line: 0,
+                    character: 0,
+                },
+                end: Position {
+                    line: 0,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         // 无效的正则表达式应该返回空列表
         let routes = navigator.find_routes("regex:[invalid");
         assert_eq!(routes.len(), 0);
@@ -1512,33 +1631,39 @@ mod tests {
 
     #[test]
     fn test_find_routes_no_match() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/users".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
             range: Range {
-                start: Position { line: 0, character: 0 },
-                end: Position { line: 0, character: 0 },
+                start: Position {
+                    line: 0,
+                    character: 0,
+                },
+                end: Position {
+                    line: 0,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         // 不匹配的模式应该返回空列表
         let routes = navigator.find_routes("posts");
         assert_eq!(routes.len(), 0);
-        
+
         let routes = navigator.find_routes("regex:^/api/.*");
         assert_eq!(routes.len(), 0);
     }
@@ -1552,29 +1677,35 @@ mod tests {
 
     #[test]
     fn test_find_routes_by_handler_single() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/users/{id}".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let routes = navigator.find_routes_by_handler("get_user");
         assert_eq!(routes.len(), 1);
         assert_eq!(routes[0].path, "/users/{id}");
@@ -1583,10 +1714,10 @@ mod tests {
 
     #[test]
     fn test_find_routes_by_handler_multiple() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         // 同一个处理器处理多个路由
         let route1 = RouteMacro {
             path: "/users".to_string(),
@@ -1594,22 +1725,28 @@ mod tests {
             middlewares: vec![],
             handler_name: "handle_users".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route1)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let routes = navigator.find_routes_by_handler("handle_users");
         assert_eq!(routes.len(), 2); // GET 和 POST 各一个
-        
+
         for route in routes {
             assert_eq!(route.path, "/users");
             assert_eq!(route.handler.function_name, "handle_users");
@@ -1618,63 +1755,75 @@ mod tests {
 
     #[test]
     fn test_find_routes_by_handler_not_found() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/users".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let routes = navigator.find_routes_by_handler("get_user");
         assert_eq!(routes.len(), 0);
     }
 
     #[test]
     fn test_route_location_for_jump() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/users/{id}".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
             range: Range {
-                start: Position { line: 42, character: 5 },
-                end: Position { line: 50, character: 10 },
+                start: Position {
+                    line: 42,
+                    character: 5,
+                },
+                end: Position {
+                    line: 50,
+                    character: 10,
+                },
             },
         };
-        
+
         let uri = Url::parse("file:///src/handlers/users.rs").unwrap();
-        
+
         let doc = RustDocument {
             uri: uri.clone(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let routes = navigator.find_routes("users");
         assert_eq!(routes.len(), 1);
-        
+
         // 验证位置信息可用于跳转
         let location = &routes[0].location;
         assert_eq!(location.uri, uri);
@@ -1697,32 +1846,40 @@ mod tests {
 
     #[test]
     fn test_validate_path_characters_valid() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/api/v1/users/{id}/posts".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user_posts".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let diagnostics = navigator.validate_routes();
         // 不应该有路径字符错误
-        assert!(!diagnostics.iter().any(|d| d.code.as_ref()
+        assert!(!diagnostics.iter().any(|d| d
+            .code
+            .as_ref()
             .and_then(|c| match c {
                 lsp_types::NumberOrString::String(s) => Some(s.as_str()),
                 _ => None,
@@ -1733,32 +1890,40 @@ mod tests {
 
     #[test]
     fn test_validate_path_characters_invalid() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/users/<id>".to_string(), // < 和 > 是无效字符
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let diagnostics = navigator.validate_routes();
         // 应该有路径字符错误
-        assert!(diagnostics.iter().any(|d| d.code.as_ref()
+        assert!(diagnostics.iter().any(|d| d
+            .code
+            .as_ref()
             .and_then(|c| match c {
                 lsp_types::NumberOrString::String(s) => Some(s.as_str()),
                 _ => None,
@@ -1769,29 +1934,35 @@ mod tests {
 
     #[test]
     fn test_validate_path_parameter_syntax_valid() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/users/{id}/posts/{post_id}".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user_post".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let diagnostics = navigator.validate_routes();
         // 不应该有参数语法错误
         assert!(!diagnostics.iter().any(|d| {
@@ -1805,32 +1976,40 @@ mod tests {
 
     #[test]
     fn test_validate_path_parameter_syntax_empty_param() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/users/{}".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let diagnostics = navigator.validate_routes();
         // 应该有空参数名错误
-        assert!(diagnostics.iter().any(|d| d.code.as_ref()
+        assert!(diagnostics.iter().any(|d| d
+            .code
+            .as_ref()
             .and_then(|c| match c {
                 lsp_types::NumberOrString::String(s) => Some(s.as_str()),
                 _ => None,
@@ -1841,32 +2020,40 @@ mod tests {
 
     #[test]
     fn test_validate_path_parameter_syntax_unclosed() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/users/{id".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let diagnostics = navigator.validate_routes();
         // 应该有未闭合括号错误
-        assert!(diagnostics.iter().any(|d| d.code.as_ref()
+        assert!(diagnostics.iter().any(|d| d
+            .code
+            .as_ref()
             .and_then(|c| match c {
                 lsp_types::NumberOrString::String(s) => Some(s.as_str()),
                 _ => None,
@@ -1877,32 +2064,40 @@ mod tests {
 
     #[test]
     fn test_validate_path_parameter_syntax_unmatched_closing() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/users/id}".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let diagnostics = navigator.validate_routes();
         // 应该有未匹配的闭括号错误
-        assert!(diagnostics.iter().any(|d| d.code.as_ref()
+        assert!(diagnostics.iter().any(|d| d
+            .code
+            .as_ref()
             .and_then(|c| match c {
                 lsp_types::NumberOrString::String(s) => Some(s.as_str()),
                 _ => None,
@@ -1913,32 +2108,40 @@ mod tests {
 
     #[test]
     fn test_validate_path_parameter_syntax_nested() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/users/{{id}}".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let diagnostics = navigator.validate_routes();
         // 应该有嵌套括号错误
-        assert!(diagnostics.iter().any(|d| d.code.as_ref()
+        assert!(diagnostics.iter().any(|d| d
+            .code
+            .as_ref()
             .and_then(|c| match c {
                 lsp_types::NumberOrString::String(s) => Some(s.as_str()),
                 _ => None,
@@ -1949,29 +2152,35 @@ mod tests {
 
     #[test]
     fn test_validate_restful_style_valid() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/api/v1/users/{id}/posts".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user_posts".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let diagnostics = navigator.validate_routes();
         // 不应该有 RESTful 风格警告
         assert!(!diagnostics.iter().any(|d| {
@@ -1985,32 +2194,40 @@ mod tests {
 
     #[test]
     fn test_validate_restful_style_verb() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/getUsers".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_users".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let diagnostics = navigator.validate_routes();
         // 应该有动词使用警告
-        assert!(diagnostics.iter().any(|d| d.code.as_ref()
+        assert!(diagnostics.iter().any(|d| d
+            .code
+            .as_ref()
             .and_then(|c| match c {
                 lsp_types::NumberOrString::String(s) => Some(s.as_str()),
                 _ => None,
@@ -2021,32 +2238,40 @@ mod tests {
 
     #[test]
     fn test_validate_restful_style_case() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route = RouteMacro {
             path: "/userProfiles".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user_profiles".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let diagnostics = navigator.validate_routes();
         // 应该有大写字母使用警告
-        assert!(diagnostics.iter().any(|d| d.code.as_ref()
+        assert!(diagnostics.iter().any(|d| d
+            .code
+            .as_ref()
             .and_then(|c| match c {
                 lsp_types::NumberOrString::String(s) => Some(s.as_str()),
                 _ => None,
@@ -2064,40 +2289,52 @@ mod tests {
 
     #[test]
     fn test_detect_conflicts_no_conflict() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route1 = RouteMacro {
             path: "/users".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let route2 = RouteMacro {
             path: "/users".to_string(),
             methods: vec![HttpMethod::Post],
             middlewares: vec![],
             handler_name: "create_user".to_string(),
             range: Range {
-                start: Position { line: 20, character: 0 },
-                end: Position { line: 25, character: 0 },
+                start: Position {
+                    line: 20,
+                    character: 0,
+                },
+                end: Position {
+                    line: 25,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route1), SpringMacro::Route(route2)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let conflicts = navigator.detect_conflicts();
         // 不同的 HTTP 方法，不应该有冲突
         assert_eq!(conflicts.len(), 0);
@@ -2105,40 +2342,52 @@ mod tests {
 
     #[test]
     fn test_detect_conflicts_same_path_and_method() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         let route1 = RouteMacro {
             path: "/users".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let route2 = RouteMacro {
             path: "/users".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_users".to_string(),
             range: Range {
-                start: Position { line: 20, character: 0 },
-                end: Position { line: 25, character: 0 },
+                start: Position {
+                    line: 20,
+                    character: 0,
+                },
+                end: Position {
+                    line: 25,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
             macros: vec![SpringMacro::Route(route1), SpringMacro::Route(route2)],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let conflicts = navigator.detect_conflicts();
         // 相同的路径和方法，应该有冲突
         assert_eq!(conflicts.len(), 1);
@@ -2148,10 +2397,10 @@ mod tests {
 
     #[test]
     fn test_detect_conflicts_multiple() {
-        use crate::macro_analyzer::{RustDocument, SpringMacro, RouteMacro};
-        
+        use crate::macro_analyzer::{RouteMacro, RustDocument, SpringMacro};
+
         let mut navigator = RouteNavigator::new();
-        
+
         // 三个路由，都是 GET /users
         let route1 = RouteMacro {
             path: "/users".to_string(),
@@ -2159,33 +2408,51 @@ mod tests {
             middlewares: vec![],
             handler_name: "handler1".to_string(),
             range: Range {
-                start: Position { line: 10, character: 0 },
-                end: Position { line: 15, character: 0 },
+                start: Position {
+                    line: 10,
+                    character: 0,
+                },
+                end: Position {
+                    line: 15,
+                    character: 0,
+                },
             },
         };
-        
+
         let route2 = RouteMacro {
             path: "/users".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "handler2".to_string(),
             range: Range {
-                start: Position { line: 20, character: 0 },
-                end: Position { line: 25, character: 0 },
+                start: Position {
+                    line: 20,
+                    character: 0,
+                },
+                end: Position {
+                    line: 25,
+                    character: 0,
+                },
             },
         };
-        
+
         let route3 = RouteMacro {
             path: "/users".to_string(),
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "handler3".to_string(),
             range: Range {
-                start: Position { line: 30, character: 0 },
-                end: Position { line: 35, character: 0 },
+                start: Position {
+                    line: 30,
+                    character: 0,
+                },
+                end: Position {
+                    line: 35,
+                    character: 0,
+                },
             },
         };
-        
+
         let doc = RustDocument {
             uri: Url::parse("file:///test.rs").unwrap(),
             content: String::new(),
@@ -2195,9 +2462,9 @@ mod tests {
                 SpringMacro::Route(route3),
             ],
         };
-        
+
         navigator.build_index(&[doc]);
-        
+
         let conflicts = navigator.detect_conflicts();
         // 应该有 3 个冲突：(0,1), (0,2), (1,2)
         assert_eq!(conflicts.len(), 3);
@@ -2213,15 +2480,27 @@ mod tests {
             location1: Location {
                 uri: Url::parse("file:///test.rs").unwrap(),
                 range: Range {
-                    start: Position { line: 10, character: 0 },
-                    end: Position { line: 15, character: 0 },
+                    start: Position {
+                        line: 10,
+                        character: 0,
+                    },
+                    end: Position {
+                        line: 15,
+                        character: 0,
+                    },
                 },
             },
             location2: Location {
                 uri: Url::parse("file:///test.rs").unwrap(),
                 range: Range {
-                    start: Position { line: 20, character: 0 },
-                    end: Position { line: 25, character: 0 },
+                    start: Position {
+                        line: 20,
+                        character: 0,
+                    },
+                    end: Position {
+                        line: 25,
+                        character: 0,
+                    },
                 },
             },
         };

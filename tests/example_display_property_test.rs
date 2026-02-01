@@ -10,9 +10,11 @@
 //!
 //! 使用 proptest 生成随机的配置 Schema 和 TOML 文档，验证示例代码在悬停提示中的显示正确性。
 
-use proptest::prelude::*;
 use lsp_types::Position;
-use spring_lsp::schema::{ConfigSchema, PluginSchema, PropertySchema, SchemaProvider, TypeInfo, Value};
+use proptest::prelude::*;
+use spring_lsp::schema::{
+    ConfigSchema, PluginSchema, PropertySchema, SchemaProvider, TypeInfo, Value,
+};
 use spring_lsp::toml_analyzer::TomlAnalyzer;
 use std::collections::HashMap;
 
@@ -42,9 +44,7 @@ fn integer_value() -> impl Strategy<Value = i64> {
 
 /// 生成单行示例代码（简化版本，不使用闭包捕获）
 fn single_line_example() -> impl Strategy<Value = String> {
-    (string_value(), integer_value()).prop_map(|(s, i)| {
-        format!("key = \"{}\" # or key = {}", s, i)
-    })
+    (string_value(), integer_value()).prop_map(|(s, i)| format!("key = \"{}\" # or key = {}", s, i))
 }
 
 /// 生成多行示例代码（简化版本，不使用闭包捕获）
@@ -53,102 +53,117 @@ fn multiline_example() -> impl Strategy<Value = String> {
         string_value(),
         integer_value(),
         prop::collection::vec(string_value(), 1..5),
-    ).prop_map(|(s, i, arr)| {
-        let array_str = arr.iter()
-            .map(|v| format!("\"{}\"", v))
-            .collect::<Vec<_>>()
-            .join(", ");
-        
-        format!(
-            "[section.subsection]\nvalue1 = \"{}\"\nvalue2 = {}\narray = [{}]",
-            s, i, array_str
-        )
-    })
+    )
+        .prop_map(|(s, i, arr)| {
+            let array_str = arr
+                .iter()
+                .map(|v| format!("\"{}\"", v))
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            format!(
+                "[section.subsection]\nvalue1 = \"{}\"\nvalue2 = {}\narray = [{}]",
+                s, i, array_str
+            )
+        })
 }
 
 /// 生成带示例代码的 PropertySchema
-fn property_schema_with_example(key: String, has_example: bool) -> impl Strategy<Value = PropertySchema> {
+fn property_schema_with_example(
+    key: String,
+    has_example: bool,
+) -> impl Strategy<Value = PropertySchema> {
     let key_clone = key.clone();
     (
         string_value(),
         prop::option::of(string_value()),
         prop::bool::ANY,
-    ).prop_map(move |(desc, default, is_multiline)| {
-        let example = if has_example {
-            if is_multiline {
-                Some(format!("{} = \"example_value\"\n# Additional config\nother = 123", key_clone))
+    )
+        .prop_map(move |(desc, default, is_multiline)| {
+            let example = if has_example {
+                if is_multiline {
+                    Some(format!(
+                        "{} = \"example_value\"\n# Additional config\nother = 123",
+                        key_clone
+                    ))
+                } else {
+                    Some(format!("{} = \"example_value\"", key_clone))
+                }
             } else {
-                Some(format!("{} = \"example_value\"", key_clone))
-            }
-        } else {
-            None
-        };
-        
-        PropertySchema {
-            name: key_clone.clone(),
-            type_info: TypeInfo::String {
-                enum_values: None,
-                min_length: None,
-                max_length: None,
-            },
-            description: desc,
-            default: default.map(Value::String),
-            required: false,
-            deprecated: None,
-            example,
-        }
-    })
-}
+                None
+            };
 
-/// 生成 PluginSchema
-fn plugin_schema_with_examples(prefix: String) -> impl Strategy<Value = PluginSchema> {
-    prop::collection::vec(
-        (config_key(), prop::bool::ANY),
-        1..5,
-    ).prop_map(move |keys_with_examples| {
-        let mut properties = HashMap::new();
-        
-        for (key, has_example) in keys_with_examples {
-            let schema = PropertySchema {
-                name: key.clone(),
+            PropertySchema {
+                name: key_clone.clone(),
                 type_info: TypeInfo::String {
                     enum_values: None,
                     min_length: None,
                     max_length: None,
                 },
-                description: format!("Description for {}", key),
-                default: Some(Value::String("default".to_string())),
+                description: desc,
+                default: default.map(Value::String),
                 required: false,
                 deprecated: None,
-                example: if has_example {
-                    Some(format!("{} = \"example_value\"", key))
-                } else {
-                    None
-                },
-            };
-            properties.insert(key, schema);
-        }
-        
-        PluginSchema {
-            prefix: prefix.clone(),
-            properties,
-        }
-    })
+                example,
+            }
+        })
+}
+
+/// 生成 PluginSchema
+fn plugin_schema_with_examples(prefix: String) -> impl Strategy<Value = PluginSchema> {
+    prop::collection::vec((config_key(), prop::bool::ANY), 1..5).prop_map(
+        move |keys_with_examples| {
+            let mut properties = HashMap::new();
+
+            for (key, has_example) in keys_with_examples {
+                let schema = PropertySchema {
+                    name: key.clone(),
+                    type_info: TypeInfo::String {
+                        enum_values: None,
+                        min_length: None,
+                        max_length: None,
+                    },
+                    description: format!("Description for {}", key),
+                    default: Some(Value::String("default".to_string())),
+                    required: false,
+                    deprecated: None,
+                    example: if has_example {
+                        Some(format!("{} = \"example_value\"", key))
+                    } else {
+                        None
+                    },
+                };
+                properties.insert(key, schema);
+            }
+
+            PluginSchema {
+                prefix: prefix.clone(),
+                properties,
+            }
+        },
+    )
 }
 
 /// 生成 ConfigSchema（简化版本）
 fn config_schema_with_examples() -> impl Strategy<Value = ConfigSchema> {
     prop::collection::vec(
-        (config_prefix(), plugin_schema_with_examples("test".to_string())),
+        (
+            config_prefix(),
+            plugin_schema_with_examples("test".to_string()),
+        ),
         1..3,
-    ).prop_map(|plugin_vec| {
+    )
+    .prop_map(|plugin_vec| {
         let mut plugins = HashMap::new();
         for (i, (_, schema)) in plugin_vec.into_iter().enumerate() {
             let prefix = format!("plugin{}", i);
-            plugins.insert(prefix.clone(), PluginSchema {
-                prefix,
-                properties: schema.properties,
-            });
+            plugins.insert(
+                prefix.clone(),
+                PluginSchema {
+                    prefix,
+                    properties: schema.properties,
+                },
+            );
         }
         ConfigSchema { plugins }
     })
@@ -157,17 +172,17 @@ fn config_schema_with_examples() -> impl Strategy<Value = ConfigSchema> {
 /// 生成 TOML 文档内容
 fn toml_document_content(schema: &ConfigSchema) -> String {
     let mut content = String::new();
-    
+
     for (prefix, plugin_schema) in &schema.plugins {
         content.push_str(&format!("[{}]\n", prefix));
-        
+
         for (key, _) in &plugin_schema.properties {
             content.push_str(&format!("{} = \"test_value\"\n", key));
         }
-        
+
         content.push('\n');
     }
-    
+
     content
 }
 
@@ -547,7 +562,7 @@ mod property_64_example_display {
         ) {
             // 使用简单的示例代码，避免特殊字符导致的格式问题
             let example_code = format!("{} = \"example_value\"", key);
-            
+
             // 创建包含示例代码的 Schema
             let mut properties = HashMap::new();
             properties.insert(
@@ -652,7 +667,7 @@ mod property_64_example_display {
             for i in 0..num_properties {
                 let key = format!("property_{}", i);
                 let example = format!("{} = \"example_{}\"", key, i);
-                
+
                 keys.push(key.clone());
                 properties.insert(
                     key.clone(),
@@ -828,10 +843,10 @@ mod unit_tests {
 
         if let lsp_types::HoverContents::Markup(content) = hover.contents {
             println!("Hover text:\n{}", content.value);
-            
+
             let code_block_starts: Vec<_> = content.value.match_indices("```toml").collect();
             let code_block_ends: Vec<_> = content.value.match_indices("\n```").collect();
-            
+
             println!("Code block starts: {:?}", code_block_starts);
             println!("Code block ends: {:?}", code_block_ends);
         }

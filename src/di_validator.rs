@@ -172,8 +172,9 @@ impl DependencyInjectionValidator {
                 // 组件存在，验证类型是否匹配
                 if component_info.type_name != field.type_name {
                     // 获取所有可用的同类型组件
-                    let available_components = self.get_available_components_by_type(&field.type_name);
-                    
+                    let available_components =
+                        self.get_available_components_by_type(&field.type_name);
+
                     let suggestion = if available_components.is_empty() {
                         String::new()
                     } else {
@@ -201,7 +202,7 @@ impl DependencyInjectionValidator {
             } else {
                 // 指定的组件名称不存在
                 let available_components = self.get_available_components_by_type(&field.type_name);
-                
+
                 let suggestion = if available_components.is_empty() {
                     String::new()
                 } else {
@@ -218,10 +219,7 @@ impl DependencyInjectionValidator {
                     code: Some(NumberOrString::String(
                         "component-name-not-found".to_string(),
                     )),
-                    message: format!(
-                        "组件名称 '{}' 不存在。{}",
-                        specified_name, suggestion
-                    ),
+                    message: format!("组件名称 '{}' 不存在。{}", specified_name, suggestion),
                     source: Some("spring-lsp".to_string()),
                     ..Default::default()
                 });
@@ -352,9 +350,7 @@ impl DependencyInjectionValidator {
                         diagnostics.push(Diagnostic {
                             range: service_info.location.range,
                             severity: Some(DiagnosticSeverity::WARNING),
-                            code: Some(NumberOrString::String(
-                                "circular-dependency".to_string(),
-                            )),
+                            code: Some(NumberOrString::String("circular-dependency".to_string())),
                             message: format!(
                                 "检测到循环依赖: {}。建议使用 LazyComponent<T> 打破循环。",
                                 cycle.join(" -> ")
@@ -386,13 +382,9 @@ impl DependencyInjectionValidator {
         if let Some(neighbors) = graph.get(node) {
             for neighbor in neighbors {
                 if !visited.contains(neighbor) {
-                    if let Some(cycle) = self.detect_cycle_dfs(
-                        neighbor,
-                        graph,
-                        visited,
-                        rec_stack,
-                        path,
-                    ) {
+                    if let Some(cycle) =
+                        self.detect_cycle_dfs(neighbor, graph, visited, rec_stack, path)
+                    {
                         return Some(cycle);
                     }
                 } else if rec_stack.contains(neighbor) {
@@ -448,7 +440,7 @@ impl DependencyInjectionValidator {
     fn extract_config_prefix(&self, type_name: &str) -> String {
         // 移除 "Config" 后缀
         let prefix = type_name.strip_suffix("Config").unwrap_or(type_name);
-        
+
         // 转换为小写并用连字符分隔
         // 例如：UserProfile -> user-profile
         let mut result = String::new();
@@ -458,7 +450,7 @@ impl DependencyInjectionValidator {
             }
             result.push(ch.to_lowercase().next().unwrap());
         }
-        
+
         result
     }
 
@@ -499,7 +491,10 @@ mod tests {
         let validator = DependencyInjectionValidator::new(IndexManager::new());
 
         assert_eq!(validator.extract_config_prefix("UserConfig"), "user");
-        assert_eq!(validator.extract_config_prefix("DatabaseConfig"), "database");
+        assert_eq!(
+            validator.extract_config_prefix("DatabaseConfig"),
+            "database"
+        );
         assert_eq!(
             validator.extract_config_prefix("UserProfileConfig"),
             "user-profile"
@@ -512,7 +507,7 @@ mod tests {
     fn test_dependency_injection_validator_new() {
         let index_manager = IndexManager::new();
         let validator = DependencyInjectionValidator::new(index_manager);
-        
+
         // 验证可以创建验证器
         let diagnostics = validator.validate(&[], &[]);
         assert_eq!(diagnostics.len(), 0);

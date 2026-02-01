@@ -70,15 +70,18 @@ impl DiagnosticEngine {
         // 创建通知
         let notification = Notification {
             method: PublishDiagnostics::METHOD.to_string(),
-            params: serde_json::to_value(params)
-                .map_err(|e| crate::Error::Other(anyhow::anyhow!("Failed to serialize diagnostics: {}", e)))?,
+            params: serde_json::to_value(params).map_err(|e| {
+                crate::Error::Other(anyhow::anyhow!("Failed to serialize diagnostics: {}", e))
+            })?,
         };
 
         // 发送通知
         connection
             .sender
             .send(Message::Notification(notification))
-            .map_err(|e| crate::Error::Other(anyhow::anyhow!("Failed to send diagnostics: {}", e)))?;
+            .map_err(|e| {
+                crate::Error::Other(anyhow::anyhow!("Failed to send diagnostics: {}", e))
+            })?;
 
         tracing::debug!("Published {} diagnostics for {}", diagnostics_count, uri);
 

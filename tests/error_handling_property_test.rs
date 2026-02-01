@@ -2,13 +2,13 @@
 //!
 //! 使用 proptest 验证错误处理和日志系统的通用正确性属性
 
+use lsp_types::Url;
 use proptest::prelude::*;
 use spring_lsp::error::{
     config_validation_error, di_validation_error, env_var_syntax_error, route_validation_error,
     rust_parse_error, toml_parse_error, Error, ErrorCategory, ErrorHandler, ErrorSeverity,
     RecoveryAction,
 };
-use lsp_types::Url;
 use std::sync::{Arc, Mutex};
 
 // ============================================================================

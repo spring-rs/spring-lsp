@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// 配置 Schema
-/// 
+///
 /// 包含所有插件的配置定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigSchema {
@@ -13,7 +13,7 @@ pub struct ConfigSchema {
 }
 
 /// 插件 Schema
-/// 
+///
 /// 单个插件的配置定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginSchema {
@@ -24,7 +24,7 @@ pub struct PluginSchema {
 }
 
 /// 配置属性 Schema
-/// 
+///
 /// 单个配置属性的定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PropertySchema {
@@ -115,7 +115,7 @@ pub enum Value {
 }
 
 /// Schema 提供者
-/// 
+///
 /// 管理配置 Schema，提供配置项元数据查询和缓存
 #[derive(Clone)]
 pub struct SchemaProvider {
@@ -128,7 +128,7 @@ pub struct SchemaProvider {
 impl SchemaProvider {
     /// Schema URL
     const SCHEMA_URL: &'static str = "https://spring-rs.github.io/config-schema.json";
-    
+
     /// 创建新的 Schema 提供者（使用空 Schema）
     pub fn new() -> Self {
         Self {
@@ -138,9 +138,9 @@ impl SchemaProvider {
             cache: dashmap::DashMap::new(),
         }
     }
-    
+
     /// 从 URL 加载 Schema
-    /// 
+    ///
     /// 如果加载失败，使用内置的备用 Schema
     pub async fn load() -> anyhow::Result<Self> {
         // 尝试从 URL 加载 Schema
@@ -159,14 +159,14 @@ impl SchemaProvider {
             }
         }
     }
-    
+
     /// 从指定 URL 加载 Schema
     async fn load_from_url(url: &str) -> anyhow::Result<ConfigSchema> {
         let response = reqwest::get(url).await?;
         let schema = response.json::<ConfigSchema>().await?;
         Ok(schema)
     }
-    
+
     /// 使用内置备用 Schema
     fn with_fallback_schema() -> Self {
         let fallback_schema = Self::create_fallback_schema();
@@ -175,13 +175,13 @@ impl SchemaProvider {
             cache: dashmap::DashMap::new(),
         }
     }
-    
+
     /// 创建内置备用 Schema
-    /// 
+    ///
     /// 包含常见的 spring-rs 插件配置
     fn create_fallback_schema() -> ConfigSchema {
         let mut plugins = HashMap::new();
-        
+
         // Web 插件配置
         let mut web_properties = HashMap::new();
         web_properties.insert(
@@ -215,7 +215,7 @@ impl SchemaProvider {
                 example: Some("port = 8080".to_string()),
             },
         );
-        
+
         plugins.insert(
             "web".to_string(),
             PluginSchema {
@@ -223,7 +223,7 @@ impl SchemaProvider {
                 properties: web_properties,
             },
         );
-        
+
         // Redis 插件配置
         let mut redis_properties = HashMap::new();
         redis_properties.insert(
@@ -242,7 +242,7 @@ impl SchemaProvider {
                 example: Some("url = \"redis://localhost:6379\"".to_string()),
             },
         );
-        
+
         plugins.insert(
             "redis".to_string(),
             PluginSchema {
@@ -250,19 +250,19 @@ impl SchemaProvider {
                 properties: redis_properties,
             },
         );
-        
+
         ConfigSchema { plugins }
     }
-    
+
     /// 获取插件 Schema
-    /// 
+    ///
     /// 使用缓存提高性能，返回克隆以避免锁竞争
     pub fn get_plugin_schema(&self, prefix: &str) -> Option<PluginSchema> {
         // 先查缓存（DashMap 并发安全）
         if let Some(cached) = self.cache.get(prefix) {
             return Some(cached.clone());
         }
-        
+
         // 缓存未命中，从 schema 中查找并缓存
         if let Some(schema) = self.schema.plugins.get(prefix) {
             let cloned = schema.clone();
@@ -272,17 +272,17 @@ impl SchemaProvider {
             None
         }
     }
-    
+
     /// 获取属性 Schema
-    /// 
+    ///
     /// 查询指定插件的指定属性
     pub fn get_property_schema(&self, prefix: &str, property: &str) -> Option<PropertySchema> {
         let plugin_schema = self.get_plugin_schema(prefix)?;
         plugin_schema.properties.get(property).cloned()
     }
-    
+
     /// 获取所有配置前缀
-    /// 
+    ///
     /// 返回所有已注册插件的配置前缀列表
     pub fn get_all_prefixes(&self) -> Vec<String> {
         self.schema.plugins.keys().cloned().collect()
@@ -297,7 +297,7 @@ impl Default for SchemaProvider {
 
 impl SchemaProvider {
     /// 从给定的 ConfigSchema 创建 SchemaProvider（用于测试）
-    /// 
+    ///
     /// 这个方法主要用于属性测试，允许使用自定义的 Schema 创建提供者
     pub fn from_schema(schema: ConfigSchema) -> Self {
         Self {

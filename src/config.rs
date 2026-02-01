@@ -216,12 +216,12 @@ impl Default for CompletionConfig {
     fn default() -> Self {
         Self {
             trigger_characters: vec![
-                "[".to_string(),  // TOML 配置节
-                ".".to_string(),  // 嵌套配置项
-                "$".to_string(),  // 环境变量
-                "{".to_string(),  // 环境变量插值
-                "#".to_string(),  // 宏属性
-                "(".to_string(),  // 宏参数
+                "[".to_string(), // TOML 配置节
+                ".".to_string(), // 嵌套配置项
+                "$".to_string(), // 环境变量
+                "{".to_string(), // 环境变量插值
+                "#".to_string(), // 宏属性
+                "(".to_string(), // 宏参数
             ],
         }
     }

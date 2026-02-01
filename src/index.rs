@@ -240,7 +240,10 @@ impl IndexManager {
     }
 
     /// 构建路由索引（内部方法）
-    async fn build_route_index(_root_uri: &Url, _documents: &[(Url, String)]) -> crate::route::RouteIndex {
+    async fn build_route_index(
+        _root_uri: &Url,
+        _documents: &[(Url, String)],
+    ) -> crate::route::RouteIndex {
         // TODO: 实现路由索引构建
         // 1. 遍历所有 Rust 文件
         // 2. 识别路由宏
@@ -249,7 +252,10 @@ impl IndexManager {
     }
 
     /// 构建组件索引（内部方法）
-    async fn build_component_index(_root_uri: &Url, _documents: &[(Url, String)]) -> ComponentIndex {
+    async fn build_component_index(
+        _root_uri: &Url,
+        _documents: &[(Url, String)],
+    ) -> ComponentIndex {
         // TODO: 实现组件索引构建
         // 1. 遍历所有 Rust 文件
         // 2. 识别 #[derive(Service)] 和组件注册

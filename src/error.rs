@@ -109,9 +109,9 @@ impl Error {
             Error::Protocol(_) | Error::MessageSend(_) | Error::MessageReceive(_) => {
                 ErrorCategory::Protocol
             }
-            Error::TomlParse { .. }
-            | Error::RustParse { .. }
-            | Error::EnvVarSyntax { .. } => ErrorCategory::Parse,
+            Error::TomlParse { .. } | Error::RustParse { .. } | Error::EnvVarSyntax { .. } => {
+                ErrorCategory::Parse
+            }
             Error::ConfigValidation { .. }
             | Error::RouteValidation { .. }
             | Error::DiValidation { .. } => ErrorCategory::Validation,
@@ -478,10 +478,7 @@ mod tests {
             uri: "file:///test.toml".to_string(),
             message: "syntax error".to_string(),
         };
-        assert_eq!(
-            parse_err.document_uri(),
-            Some("file:///test.toml")
-        );
+        assert_eq!(parse_err.document_uri(), Some("file:///test.toml"));
 
         let system_err = Error::SchemaLoad("failed".to_string());
         assert_eq!(system_err.document_uri(), None);

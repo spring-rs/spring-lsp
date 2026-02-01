@@ -155,7 +155,7 @@ mod property_56_server_status_query {
                 let expected_error_rate = expected_errors as f64 / expected_requests as f64;
                 prop_assert!((metrics.error_rate - expected_error_rate).abs() < 0.0001,
                     "Error rate mismatch: expected {}, got {}", expected_error_rate, metrics.error_rate);
-                
+
                 // 验证错误率范围（只有在有请求时才验证）
                 prop_assert!(metrics.error_rate >= 0.0 && metrics.error_rate <= 1.0,
                     "Error rate should be between 0 and 1, got {}", metrics.error_rate);

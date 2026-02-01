@@ -1,13 +1,16 @@
 //! TOML 配置文件分析模块
 
-use lsp_types::{Diagnostic, DiagnosticSeverity, Hover, HoverContents, MarkupContent, MarkupKind, Position, Range};
+use lsp_types::{
+    Diagnostic, DiagnosticSeverity, Hover, HoverContents, MarkupContent, MarkupKind, Position,
+    Range,
+};
 use std::collections::HashMap;
 use taplo::dom::node::IntegerValue;
 
 use crate::schema::{PropertySchema, SchemaProvider, TypeInfo};
 
 /// TOML 文档
-/// 
+///
 /// 表示解析后的 TOML 配置文件，包含环境变量引用、配置节和属性等信息
 #[derive(Debug, Clone)]
 pub struct TomlDocument {
@@ -22,7 +25,7 @@ pub struct TomlDocument {
 }
 
 /// 环境变量引用
-/// 
+///
 /// 表示 TOML 配置中的环境变量插值，格式为 `${VAR:default}` 或 `${VAR}`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnvVarReference {
@@ -35,7 +38,7 @@ pub struct EnvVarReference {
 }
 
 /// 配置节
-/// 
+///
 /// 表示 TOML 配置文件中的一个配置节，如 `[web]` 或 `[redis]`
 #[derive(Debug, Clone)]
 pub struct ConfigSection {
@@ -48,7 +51,7 @@ pub struct ConfigSection {
 }
 
 /// 配置属性
-/// 
+///
 /// 表示配置节中的单个属性，如 `host = "localhost"`
 #[derive(Debug, Clone)]
 pub struct ConfigProperty {
@@ -61,7 +64,7 @@ pub struct ConfigProperty {
 }
 
 /// 配置值
-/// 
+///
 /// 表示 TOML 配置属性的值，支持多种类型
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConfigValue {
@@ -80,7 +83,7 @@ pub enum ConfigValue {
 }
 
 /// TOML 分析器
-/// 
+///
 /// 负责解析 TOML 配置文件，提取环境变量引用和配置节
 pub struct TomlAnalyzer {
     /// Schema 提供者
@@ -92,27 +95,27 @@ impl TomlAnalyzer {
     pub fn new(schema_provider: SchemaProvider) -> Self {
         Self { schema_provider }
     }
-    
+
     /// 获取 Schema 提供者的引用
     pub fn schema_provider(&self) -> &SchemaProvider {
         &self.schema_provider
     }
 
     /// 提供悬停提示
-    /// 
+    ///
     /// 当用户悬停在 TOML 配置项或环境变量上时，显示相关文档和信息
-    /// 
+    ///
     /// # 参数
-    /// 
+    ///
     /// * `doc` - 已解析的 TOML 文档
     /// * `position` - 光标位置
-    /// 
+    ///
     /// # 返回
-    /// 
+    ///
     /// 如果光标位置有可显示的信息，返回 `Some(Hover)`，否则返回 `None`
-    /// 
+    ///
     /// # 功能
-    /// 
+    ///
     /// 1. 配置项悬停：显示配置项的文档、类型信息、默认值等
     /// 2. 环境变量悬停：显示环境变量的当前值（如果可用）
     pub fn hover(&self, doc: &TomlDocument, position: Position) -> Option<Hover> {
@@ -120,47 +123,47 @@ impl TomlAnalyzer {
         if let Some(hover) = self.hover_env_var(doc, position) {
             return Some(hover);
         }
-        
+
         // 然后检查是否悬停在配置项上
         if let Some(hover) = self.hover_config_property(doc, position) {
             return Some(hover);
         }
-        
+
         None
     }
-    
+
     /// 为环境变量提供悬停提示
     fn hover_env_var(&self, doc: &TomlDocument, position: Position) -> Option<Hover> {
         // 查找光标位置的环境变量
         for env_var in &doc.env_vars {
             if self.position_in_range(position, env_var.range) {
                 let mut hover_text = String::new();
-                
+
                 // 添加标题
                 hover_text.push_str("# 环境变量\n\n");
-                
+
                 // 添加变量名
                 hover_text.push_str(&format!("**变量名**: `{}`\n\n", env_var.name));
-                
+
                 // 添加默认值（如果有）
                 if let Some(default) = &env_var.default {
                     hover_text.push_str(&format!("**默认值**: `{}`\n\n", default));
                 }
-                
+
                 // 尝试获取环境变量的当前值
                 if let Ok(value) = std::env::var(&env_var.name) {
                     hover_text.push_str(&format!("**当前值**: `{}`\n\n", value));
                 } else {
                     hover_text.push_str("**当前值**: *未设置*\n\n");
                 }
-                
+
                 // 添加说明
                 hover_text.push_str("**说明**:\n\n");
                 hover_text.push_str("环境变量插值允许在配置文件中引用系统环境变量。\n\n");
                 hover_text.push_str("**格式**:\n");
                 hover_text.push_str("- `${VAR}` - 引用环境变量，如果未设置则报错\n");
                 hover_text.push_str("- `${VAR:default}` - 引用环境变量，如果未设置则使用默认值\n");
-                
+
                 return Some(Hover {
                     contents: HoverContents::Markup(MarkupContent {
                         kind: MarkupKind::Markdown,
@@ -170,10 +173,10 @@ impl TomlAnalyzer {
                 });
             }
         }
-        
+
         None
     }
-    
+
     /// 为配置项提供悬停提示
     fn hover_config_property(&self, doc: &TomlDocument, position: Position) -> Option<Hover> {
         // 遍历所有配置节
@@ -192,16 +195,16 @@ impl TomlAnalyzer {
                             ));
                         }
                     }
-                    
+
                     // 如果没有找到 Schema，返回基本信息
                     return Some(self.create_basic_property_hover(prefix, key, property));
                 }
             }
         }
-        
+
         None
     }
-    
+
     /// 创建配置项的悬停提示（有 Schema）
     fn create_property_hover(
         &self,
@@ -211,40 +214,53 @@ impl TomlAnalyzer {
         schema: &PropertySchema,
     ) -> Hover {
         let mut hover_text = String::new();
-        
+
         // 添加标题
         hover_text.push_str(&format!("# 配置项: `{}.{}`\n\n", prefix, key));
-        
+
         // 添加描述
         if !schema.description.is_empty() {
             hover_text.push_str(&format!("{}\n\n", schema.description));
         }
-        
+
         // 添加类型信息
-        hover_text.push_str(&format!("**类型**: {}\n\n", self.type_info_to_string(&schema.type_info)));
-        
+        hover_text.push_str(&format!(
+            "**类型**: {}\n\n",
+            self.type_info_to_string(&schema.type_info)
+        ));
+
         // 添加当前值
-        hover_text.push_str(&format!("**当前值**: `{}`\n\n", self.config_value_to_string(&property.value)));
-        
+        hover_text.push_str(&format!(
+            "**当前值**: `{}`\n\n",
+            self.config_value_to_string(&property.value)
+        ));
+
         // 添加默认值（如果有）
         if let Some(default) = &schema.default {
-            hover_text.push_str(&format!("**默认值**: `{}`\n\n", self.value_to_string(default)));
+            hover_text.push_str(&format!(
+                "**默认值**: `{}`\n\n",
+                self.value_to_string(default)
+            ));
         }
-        
+
         // 添加是否必需
         if schema.required {
             hover_text.push_str("**必需**: 是\n\n");
         }
-        
+
         // 添加枚举值（如果有）
-        if let TypeInfo::String { enum_values: Some(enum_vals), .. } = &schema.type_info {
+        if let TypeInfo::String {
+            enum_values: Some(enum_vals),
+            ..
+        } = &schema.type_info
+        {
             hover_text.push_str("**允许的值**:\n");
             for val in enum_vals {
                 hover_text.push_str(&format!("- `{}`\n", val));
             }
             hover_text.push_str("\n");
         }
-        
+
         // 添加范围限制（如果有）
         match &schema.type_info {
             TypeInfo::Integer { min, max } => {
@@ -271,7 +287,11 @@ impl TomlAnalyzer {
                     hover_text.push_str("\n");
                 }
             }
-            TypeInfo::String { min_length, max_length, .. } => {
+            TypeInfo::String {
+                min_length,
+                max_length,
+                ..
+            } => {
                 if min_length.is_some() || max_length.is_some() {
                     hover_text.push_str("**长度限制**:\n");
                     if let Some(min_len) = min_length {
@@ -285,7 +305,7 @@ impl TomlAnalyzer {
             }
             _ => {}
         }
-        
+
         // 添加示例代码（如果有）
         if let Some(example) = &schema.example {
             hover_text.push_str("**示例**:\n\n");
@@ -293,17 +313,17 @@ impl TomlAnalyzer {
             hover_text.push_str(example);
             hover_text.push_str("\n```\n\n");
         }
-        
+
         // 添加废弃警告（如果有）
         if let Some(deprecated_msg) = &schema.deprecated {
             hover_text.push_str(&format!("⚠️ **已废弃**: {}\n\n", deprecated_msg));
         }
-        
+
         // 添加配置文件位置提示
         hover_text.push_str("---\n\n");
         hover_text.push_str(&format!("*配置节*: `[{}]`\n", prefix));
         hover_text.push_str("*配置文件*: `config/app.toml`\n");
-        
+
         Hover {
             contents: HoverContents::Markup(MarkupContent {
                 kind: MarkupKind::Markdown,
@@ -312,7 +332,7 @@ impl TomlAnalyzer {
             range: Some(property.range),
         }
     }
-    
+
     /// 创建配置项的基本悬停提示（无 Schema）
     fn create_basic_property_hover(
         &self,
@@ -321,24 +341,30 @@ impl TomlAnalyzer {
         property: &ConfigProperty,
     ) -> Hover {
         let mut hover_text = String::new();
-        
+
         // 添加标题
         hover_text.push_str(&format!("# 配置项: `{}.{}`\n\n", prefix, key));
-        
+
         // 添加当前值
-        hover_text.push_str(&format!("**当前值**: `{}`\n\n", self.config_value_to_string(&property.value)));
-        
+        hover_text.push_str(&format!(
+            "**当前值**: `{}`\n\n",
+            self.config_value_to_string(&property.value)
+        ));
+
         // 添加类型
-        hover_text.push_str(&format!("**类型**: {}\n\n", self.config_value_type_name(&property.value)));
-        
+        hover_text.push_str(&format!(
+            "**类型**: {}\n\n",
+            self.config_value_type_name(&property.value)
+        ));
+
         // 添加警告
         hover_text.push_str("⚠️ **警告**: 此配置项未在 Schema 中定义\n\n");
-        
+
         // 添加配置文件位置提示
         hover_text.push_str("---\n\n");
         hover_text.push_str(&format!("*配置节*: `[{}]`\n", prefix));
         hover_text.push_str("*配置文件*: `config/app.toml`\n");
-        
+
         Hover {
             contents: HoverContents::Markup(MarkupContent {
                 kind: MarkupKind::Markdown,
@@ -347,26 +373,26 @@ impl TomlAnalyzer {
             range: Some(property.range),
         }
     }
-    
+
     /// 检查位置是否在范围内
     fn position_in_range(&self, position: Position, range: Range) -> bool {
         // 检查行号
         if position.line < range.start.line || position.line > range.end.line {
             return false;
         }
-        
+
         // 如果在同一行，检查字符位置
         if position.line == range.start.line && position.character < range.start.character {
             return false;
         }
-        
+
         if position.line == range.end.line && position.character > range.end.character {
             return false;
         }
-        
+
         true
     }
-    
+
     /// 将配置值转换为字符串
     fn config_value_to_string(&self, value: &ConfigValue) -> String {
         match value {
@@ -375,18 +401,20 @@ impl TomlAnalyzer {
             ConfigValue::Float(f) => f.to_string(),
             ConfigValue::Boolean(b) => b.to_string(),
             ConfigValue::Array(arr) => {
-                let items: Vec<String> = arr.iter().map(|v| self.config_value_to_string(v)).collect();
+                let items: Vec<String> =
+                    arr.iter().map(|v| self.config_value_to_string(v)).collect();
                 format!("[{}]", items.join(", "))
             }
             ConfigValue::Table(table) => {
-                let items: Vec<String> = table.iter()
+                let items: Vec<String> = table
+                    .iter()
                     .map(|(k, v)| format!("{} = {}", k, self.config_value_to_string(v)))
                     .collect();
                 format!("{{ {} }}", items.join(", "))
             }
         }
     }
-    
+
     /// 将 Schema 中的值转换为字符串
     fn value_to_string(&self, value: &crate::schema::Value) -> String {
         match value {
@@ -399,7 +427,8 @@ impl TomlAnalyzer {
                 format!("[{}]", items.join(", "))
             }
             crate::schema::Value::Table(obj) => {
-                let items: Vec<String> = obj.iter()
+                let items: Vec<String> = obj
+                    .iter()
                     .map(|(k, v)| format!("{} = {}", k, self.value_to_string(v)))
                     .collect();
                 format!("{{ {} }}", items.join(", "))
@@ -408,19 +437,19 @@ impl TomlAnalyzer {
     }
 
     /// 验证配置文件
-    /// 
+    ///
     /// 根据 Schema 验证配置文件，生成诊断信息
-    /// 
+    ///
     /// # 参数
-    /// 
+    ///
     /// * `doc` - 已解析的 TOML 文档
-    /// 
+    ///
     /// # 返回
-    /// 
+    ///
     /// 诊断信息列表，包含错误、警告等
-    /// 
+    ///
     /// # 验证项
-    /// 
+    ///
     /// 1. 配置项定义检查：检查配置项是否在 Schema 中定义
     /// 2. 类型验证：检查配置值类型是否匹配
     /// 3. 必需项检查：检查必需的配置项是否存在
@@ -439,7 +468,7 @@ impl TomlAnalyzer {
             if let Some(plugin_schema) = self.schema_provider.get_plugin_schema(prefix) {
                 // 验证配置节中的属性
                 diagnostics.extend(self.validate_section(section, &plugin_schema));
-                
+
                 // 检查必需的配置项是否存在
                 diagnostics.extend(self.validate_required_properties(section, &plugin_schema));
             } else {
@@ -447,7 +476,9 @@ impl TomlAnalyzer {
                 diagnostics.push(Diagnostic {
                     range: section.range,
                     severity: Some(DiagnosticSeverity::ERROR),
-                    code: Some(lsp_types::NumberOrString::String("undefined-section".to_string())),
+                    code: Some(lsp_types::NumberOrString::String(
+                        "undefined-section".to_string(),
+                    )),
                     message: format!("配置节 '{}' 未在 Schema 中定义", prefix),
                     source: Some("spring-lsp".to_string()),
                     ..Default::default()
@@ -468,7 +499,9 @@ impl TomlAnalyzer {
                 diagnostics.push(Diagnostic {
                     range: env_var.range,
                     severity: Some(DiagnosticSeverity::ERROR),
-                    code: Some(lsp_types::NumberOrString::String("empty-var-name".to_string())),
+                    code: Some(lsp_types::NumberOrString::String(
+                        "empty-var-name".to_string(),
+                    )),
                     message: "环境变量名不能为空".to_string(),
                     source: Some("spring-lsp".to_string()),
                     ..Default::default()
@@ -476,11 +509,17 @@ impl TomlAnalyzer {
             }
 
             // 检查变量名是否符合命名规范（大写字母、数字、下划线）
-            if !env_var.name.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_') {
+            if !env_var
+                .name
+                .chars()
+                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+            {
                 diagnostics.push(Diagnostic {
                     range: env_var.range,
                     severity: Some(DiagnosticSeverity::WARNING),
-                    code: Some(lsp_types::NumberOrString::String("invalid-var-name".to_string())),
+                    code: Some(lsp_types::NumberOrString::String(
+                        "invalid-var-name".to_string(),
+                    )),
                     message: format!(
                         "环境变量名 '{}' 不符合命名规范，建议使用大写字母、数字和下划线",
                         env_var.name
@@ -509,7 +548,9 @@ impl TomlAnalyzer {
                     diagnostics.push(Diagnostic {
                         range: property.range,
                         severity: Some(DiagnosticSeverity::WARNING),
-                        code: Some(lsp_types::NumberOrString::String("deprecated-property".to_string())),
+                        code: Some(lsp_types::NumberOrString::String(
+                            "deprecated-property".to_string(),
+                        )),
                         message: format!("配置项 '{}' 已废弃: {}", key, deprecated_msg),
                         source: Some("spring-lsp".to_string()),
                         ..Default::default()
@@ -526,7 +567,9 @@ impl TomlAnalyzer {
                 diagnostics.push(Diagnostic {
                     range: property.range,
                     severity: Some(DiagnosticSeverity::ERROR),
-                    code: Some(lsp_types::NumberOrString::String("undefined-property".to_string())),
+                    code: Some(lsp_types::NumberOrString::String(
+                        "undefined-property".to_string(),
+                    )),
                     message: format!("配置项 '{}' 未在 Schema 中定义", key),
                     source: Some("spring-lsp".to_string()),
                     ..Default::default()
@@ -558,11 +601,13 @@ impl TomlAnalyzer {
         if !type_matches {
             let expected_type = self.type_info_to_string(&schema.type_info);
             let actual_type = self.config_value_type_name(&property.value);
-            
+
             diagnostics.push(Diagnostic {
                 range: property.range,
                 severity: Some(DiagnosticSeverity::ERROR),
-                code: Some(lsp_types::NumberOrString::String("type-mismatch".to_string())),
+                code: Some(lsp_types::NumberOrString::String(
+                    "type-mismatch".to_string(),
+                )),
                 message: format!(
                     "配置项 '{}' 的类型不匹配：期望 {}，实际 {}",
                     property.key, expected_type, actual_type
@@ -585,14 +630,23 @@ impl TomlAnalyzer {
 
         match (&property.value, &schema.type_info) {
             // 验证字符串长度和枚举值
-            (ConfigValue::String(s), TypeInfo::String { enum_values, min_length, max_length }) => {
+            (
+                ConfigValue::String(s),
+                TypeInfo::String {
+                    enum_values,
+                    min_length,
+                    max_length,
+                },
+            ) => {
                 // 检查枚举值
                 if let Some(enum_vals) = enum_values {
                     if !enum_vals.contains(s) {
                         diagnostics.push(Diagnostic {
                             range: property.range,
                             severity: Some(DiagnosticSeverity::ERROR),
-                            code: Some(lsp_types::NumberOrString::String("invalid-enum-value".to_string())),
+                            code: Some(lsp_types::NumberOrString::String(
+                                "invalid-enum-value".to_string(),
+                            )),
                             message: format!(
                                 "配置项 '{}' 的值 '{}' 不在允许的枚举值中：{:?}",
                                 property.key, s, enum_vals
@@ -609,10 +663,14 @@ impl TomlAnalyzer {
                         diagnostics.push(Diagnostic {
                             range: property.range,
                             severity: Some(DiagnosticSeverity::ERROR),
-                            code: Some(lsp_types::NumberOrString::String("string-too-short".to_string())),
+                            code: Some(lsp_types::NumberOrString::String(
+                                "string-too-short".to_string(),
+                            )),
                             message: format!(
                                 "配置项 '{}' 的值长度 {} 小于最小长度 {}",
-                                property.key, s.len(), min_len
+                                property.key,
+                                s.len(),
+                                min_len
                             ),
                             source: Some("spring-lsp".to_string()),
                             ..Default::default()
@@ -626,10 +684,14 @@ impl TomlAnalyzer {
                         diagnostics.push(Diagnostic {
                             range: property.range,
                             severity: Some(DiagnosticSeverity::ERROR),
-                            code: Some(lsp_types::NumberOrString::String("string-too-long".to_string())),
+                            code: Some(lsp_types::NumberOrString::String(
+                                "string-too-long".to_string(),
+                            )),
                             message: format!(
                                 "配置项 '{}' 的值长度 {} 超过最大长度 {}",
-                                property.key, s.len(), max_len
+                                property.key,
+                                s.len(),
+                                max_len
                             ),
                             source: Some("spring-lsp".to_string()),
                             ..Default::default()
@@ -645,7 +707,9 @@ impl TomlAnalyzer {
                         diagnostics.push(Diagnostic {
                             range: property.range,
                             severity: Some(DiagnosticSeverity::ERROR),
-                            code: Some(lsp_types::NumberOrString::String("value-too-small".to_string())),
+                            code: Some(lsp_types::NumberOrString::String(
+                                "value-too-small".to_string(),
+                            )),
                             message: format!(
                                 "配置项 '{}' 的值 {} 小于最小值 {}",
                                 property.key, i, min_val
@@ -661,7 +725,9 @@ impl TomlAnalyzer {
                         diagnostics.push(Diagnostic {
                             range: property.range,
                             severity: Some(DiagnosticSeverity::ERROR),
-                            code: Some(lsp_types::NumberOrString::String("value-too-large".to_string())),
+                            code: Some(lsp_types::NumberOrString::String(
+                                "value-too-large".to_string(),
+                            )),
                             message: format!(
                                 "配置项 '{}' 的值 {} 超过最大值 {}",
                                 property.key, i, max_val
@@ -680,7 +746,9 @@ impl TomlAnalyzer {
                         diagnostics.push(Diagnostic {
                             range: property.range,
                             severity: Some(DiagnosticSeverity::ERROR),
-                            code: Some(lsp_types::NumberOrString::String("value-too-small".to_string())),
+                            code: Some(lsp_types::NumberOrString::String(
+                                "value-too-small".to_string(),
+                            )),
                             message: format!(
                                 "配置项 '{}' 的值 {} 小于最小值 {}",
                                 property.key, f, min_val
@@ -696,7 +764,9 @@ impl TomlAnalyzer {
                         diagnostics.push(Diagnostic {
                             range: property.range,
                             severity: Some(DiagnosticSeverity::ERROR),
-                            code: Some(lsp_types::NumberOrString::String("value-too-large".to_string())),
+                            code: Some(lsp_types::NumberOrString::String(
+                                "value-too-large".to_string(),
+                            )),
                             message: format!(
                                 "配置项 '{}' 的值 {} 超过最大值 {}",
                                 property.key, f, max_val
@@ -727,7 +797,9 @@ impl TomlAnalyzer {
                 diagnostics.push(Diagnostic {
                     range: section.range,
                     severity: Some(DiagnosticSeverity::WARNING),
-                    code: Some(lsp_types::NumberOrString::String("missing-required-property".to_string())),
+                    code: Some(lsp_types::NumberOrString::String(
+                        "missing-required-property".to_string(),
+                    )),
                     message: format!("缺少必需的配置项 '{}'", key),
                     source: Some("spring-lsp".to_string()),
                     ..Default::default()
@@ -762,24 +834,23 @@ impl TomlAnalyzer {
         }
     }
 
-
     /// 解析 TOML 文档
-    /// 
+    ///
     /// 使用 taplo 解析 TOML 内容，提取环境变量引用和配置节
-    /// 
+    ///
     /// # 参数
-    /// 
+    ///
     /// * `content` - TOML 文件内容
-    /// 
+    ///
     /// # 返回
-    /// 
+    ///
     /// 成功时返回 `TomlDocument`，失败时返回错误信息
-    /// 
+    ///
     /// # 示例
-    /// 
+    ///
     /// ```
     /// use spring_lsp::toml_analyzer::TomlAnalyzer;
-    /// 
+    ///
     /// let analyzer = TomlAnalyzer::new();
     /// let doc = analyzer.parse("[web]\nhost = \"localhost\"").unwrap();
     /// assert_eq!(doc.config_sections.len(), 1);
@@ -787,7 +858,7 @@ impl TomlAnalyzer {
     pub fn parse(&self, content: &str) -> Result<TomlDocument, String> {
         // 使用 taplo 解析 TOML
         let parse_result = taplo::parser::parse(content);
-        
+
         // 检查语法错误
         if !parse_result.errors.is_empty() {
             let error_messages: Vec<String> = parse_result
@@ -797,16 +868,16 @@ impl TomlAnalyzer {
                 .collect();
             return Err(format!("TOML 语法错误: {}", error_messages.join("; ")));
         }
-        
+
         // 转换为 DOM
         let root = parse_result.into_dom();
-        
+
         // 提取环境变量引用
         let env_vars = self.extract_env_vars(content);
-        
+
         // 提取配置节
         let config_sections = self.extract_config_sections(&root, content);
-        
+
         Ok(TomlDocument {
             root,
             env_vars,
@@ -816,7 +887,7 @@ impl TomlAnalyzer {
     }
 
     /// 提取环境变量引用
-    /// 
+    ///
     /// 识别 `${VAR:default}` 或 `${VAR}` 格式的环境变量插值
     fn extract_env_vars(&self, content: &str) -> Vec<EnvVarReference> {
         let mut env_vars = Vec::new();
@@ -836,7 +907,7 @@ impl TomlAnalyzer {
                 if let Some(end_offset) = content[byte_offset + 2..].find('}') {
                     let end_offset = byte_offset + 2 + end_offset;
                     let var_content = &content[byte_offset + 2..end_offset];
-                    
+
                     // 解析变量名和默认值
                     let (name, default) = if let Some(colon_pos) = var_content.find(':') {
                         let name = var_content[..colon_pos].to_string();
@@ -845,11 +916,11 @@ impl TomlAnalyzer {
                     } else {
                         (var_content.to_string(), None)
                     };
-                    
+
                     // 计算位置
                     let start_char = byte_offset - line_start;
                     let end_char = end_offset + 1 - line_start;
-                    
+
                     env_vars.push(EnvVarReference {
                         name,
                         default,
@@ -872,25 +943,29 @@ impl TomlAnalyzer {
     }
 
     /// 提取配置节
-    /// 
+    ///
     /// 遍历 TOML DOM 树，提取所有配置节和属性
-    fn extract_config_sections(&self, root: &taplo::dom::Node, content: &str) -> HashMap<String, ConfigSection> {
+    fn extract_config_sections(
+        &self,
+        root: &taplo::dom::Node,
+        content: &str,
+    ) -> HashMap<String, ConfigSection> {
         let mut sections = HashMap::new();
 
         // 获取根表
         if let Some(table) = root.as_table() {
             let entries = table.entries();
-            
+
             // 使用 get() 获取 Arc 引用，然后迭代
             let entries_arc = entries.get();
             for (key, value) in entries_arc.iter() {
                 let prefix = key.value().to_string();
-                
+
                 // 只处理表类型的节（配置节）
                 if value.as_table().is_some() {
                     let properties = self.extract_properties(value, content);
                     let range = self.node_to_range(value, content);
-                    
+
                     sections.insert(
                         prefix.clone(),
                         ConfigSection {
@@ -902,27 +977,31 @@ impl TomlAnalyzer {
                 }
             }
         }
-        
+
         sections
     }
 
     /// 提取配置属性
-    /// 
+    ///
     /// 从 TOML 节点中提取所有属性
-    fn extract_properties(&self, node: &taplo::dom::Node, content: &str) -> HashMap<String, ConfigProperty> {
+    fn extract_properties(
+        &self,
+        node: &taplo::dom::Node,
+        content: &str,
+    ) -> HashMap<String, ConfigProperty> {
         let mut properties = HashMap::new();
 
         // 获取表节点
         if let Some(table) = node.as_table() {
             let entries = table.entries();
-            
+
             // 使用 get() 获取 Arc 引用，然后迭代
             let entries_arc = entries.get();
             for (key, value) in entries_arc.iter() {
                 let key_str = key.value().to_string();
                 let config_value = self.node_to_config_value(value);
                 let range = self.node_to_range(value, content);
-                
+
                 properties.insert(
                     key_str.clone(),
                     ConfigProperty {
@@ -933,7 +1012,7 @@ impl TomlAnalyzer {
                 );
             }
         }
-        
+
         properties
     }
 
@@ -953,26 +1032,26 @@ impl TomlAnalyzer {
             taplo::dom::Node::Array(arr) => {
                 let items = arr.items();
                 let mut values = Vec::new();
-                
+
                 // 使用 get() 获取 Arc 引用，然后迭代
                 let items_arc = items.get();
                 for item in items_arc.iter() {
                     values.push(self.node_to_config_value(item));
                 }
-                
+
                 ConfigValue::Array(values)
             }
             taplo::dom::Node::Table(table) => {
                 let entries = table.entries();
                 let mut map = HashMap::new();
-                
+
                 // 使用 get() 获取 Arc 引用，然后迭代
                 let entries_arc = entries.get();
                 for (key, value) in entries_arc.iter() {
                     let key_str = key.value().to_string();
                     map.insert(key_str, self.node_to_config_value(value));
                 }
-                
+
                 ConfigValue::Table(map)
             }
             _ => ConfigValue::String(String::new()), // 默认值
@@ -980,7 +1059,7 @@ impl TomlAnalyzer {
     }
 
     /// 将 TOML 节点转换为 LSP 范围
-    /// 
+    ///
     /// 将 taplo 提供的字节偏移量转换为行号和字符位置
     fn node_to_range(&self, node: &taplo::dom::Node, content: &str) -> Range {
         // taplo 的 text_ranges 返回一个迭代器
@@ -1011,30 +1090,30 @@ impl TomlAnalyzer {
             }
         }
     }
-    
+
     /// 将字节偏移量转换为 LSP Position
-    /// 
+    ///
     /// 遍历内容，计算字节偏移量对应的行号和字符位置
     fn byte_offset_to_position(&self, content: &str, byte_offset: usize) -> lsp_types::Position {
         let mut line = 0;
         let mut character = 0;
         let mut current_offset = 0;
-        
+
         for ch in content.chars() {
             if current_offset >= byte_offset {
                 break;
             }
-            
+
             if ch == '\n' {
                 line += 1;
                 character = 0;
             } else {
                 character += 1;
             }
-            
+
             current_offset += ch.len_utf8();
         }
-        
+
         lsp_types::Position {
             line: line as u32,
             character: character as u32,

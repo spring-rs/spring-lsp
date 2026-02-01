@@ -10,8 +10,7 @@
 //! - 属性测试：验证通用属性在所有输入下的正确性
 
 use lsp_types::{
-    ClientCapabilities, ClientInfo, InitializeParams, Url, WorkDoneProgressParams,
-    WorkspaceFolder,
+    ClientCapabilities, ClientInfo, InitializeParams, Url, WorkDoneProgressParams, WorkspaceFolder,
 };
 use proptest::prelude::*;
 use spring_lsp::server::{LspServer, ServerState};
@@ -103,14 +102,8 @@ fn test_initialize_declares_all_capabilities() {
     // 验证补全触发字符
     assert!(completion.trigger_characters.is_some());
     let triggers = completion.trigger_characters.unwrap();
-    assert!(
-        triggers.contains(&"[".to_string()),
-        "应该支持 '[' 触发补全"
-    );
-    assert!(
-        triggers.contains(&"$".to_string()),
-        "应该支持 '$' 触发补全"
-    );
+    assert!(triggers.contains(&"[".to_string()), "应该支持 '[' 触发补全");
+    assert!(triggers.contains(&"$".to_string()), "应该支持 '$' 触发补全");
     assert!(
         triggers.contains(&"{".to_string()),
         "应该支持 '{{' 触发补全"
@@ -436,10 +429,7 @@ fn test_initialize_with_empty_capabilities() {
     };
 
     let result = server.handle_initialize(params);
-    assert!(
-        result.is_ok(),
-        "即使客户端能力为空，初始化也应该成功"
-    );
+    assert!(result.is_ok(), "即使客户端能力为空，初始化也应该成功");
 }
 
 /// 测试极长的客户端名称
@@ -469,10 +459,7 @@ fn test_initialize_with_very_long_client_name() {
     };
 
     let result = server.handle_initialize(params);
-    assert!(
-        result.is_ok(),
-        "即使客户端名称很长，初始化也应该成功"
-    );
+    assert!(result.is_ok(), "即使客户端名称很长，初始化也应该成功");
 }
 
 /// 测试无效的 root_uri（应该被忽略）
@@ -521,7 +508,7 @@ fn test_concurrent_initialization() {
             thread::spawn(move || {
                 // 每个线程创建自己的服务器实例
                 let mut server = LspServer::start().unwrap();
-                
+
                 #[allow(deprecated)]
                 let params = InitializeParams {
                     process_id: Some(i),

@@ -1,9 +1,9 @@
 //! TOML 文档模型单元测试
 
+use lsp_types::{Position, Range};
 use spring_lsp::toml_analyzer::{
     ConfigProperty, ConfigSection, ConfigValue, EnvVarReference, TomlDocument,
 };
-use lsp_types::{Position, Range};
 use std::collections::HashMap;
 
 #[test]
@@ -311,16 +311,10 @@ fn test_env_var_reference_equality() {
 fn test_nested_config_values() {
     // 测试嵌套的配置值
     let mut inner_table = HashMap::new();
-    inner_table.insert(
-        "timeout".to_string(),
-        ConfigValue::Integer(30),
-    );
+    inner_table.insert("timeout".to_string(), ConfigValue::Integer(30));
 
     let mut outer_table = HashMap::new();
-    outer_table.insert(
-        "connection".to_string(),
-        ConfigValue::Table(inner_table),
-    );
+    outer_table.insert("connection".to_string(), ConfigValue::Table(inner_table));
 
     let nested_val = ConfigValue::Table(outer_table);
 
