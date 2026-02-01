@@ -415,7 +415,7 @@ impl LspServer {
 
         // 清理相关的诊断和缓存
         self.diagnostic_engine.clear(&uri);
-        self.diagnostic_engine.publish(&self.connection, &uri);
+        let _ = self.diagnostic_engine.publish(&self.connection, &uri);
 
         Ok(())
     }
@@ -601,7 +601,7 @@ impl LspServer {
         }
 
         // 发布诊断
-        self.diagnostic_engine.publish(&self.connection, uri);
+        let _ = self.diagnostic_engine.publish(&self.connection, uri);
         self.status.record_diagnostic();
 
         Ok(())
