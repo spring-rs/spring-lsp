@@ -1,0 +1,90 @@
+{
+  "name": "spring-rs-lsp",
+  "displayName": "Spring RS Language Server",
+  "description": "Language Server for Spring RS framework TOML configuration files",
+  "version": "0.1.0",
+  "publisher": "spring-rs",
+  "license": "MIT OR Apache-2.0",
+  "icon": "icon.svg",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/spring-rs/spring-lsp"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "keywords": [
+    "spring-rs",
+    "toml",
+    "rust",
+    "language-server"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/.spring-lsp.toml",
+    "workspaceContains:**/config/app.toml"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "Spring RS LSP",
+      "properties": {
+        "spring-rs-lsp.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the Spring RS language server"
+        },
+        "spring-rs-lsp.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to spring-lsp executable (leave empty to use bundled version)"
+        },
+        "spring-rs-lsp.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the language server"
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "toml",
+        "extensions": [
+          ".toml"
+        ],
+        "filenames": [
+          ".spring-lsp.toml"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.75.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0",
+    "@vscode/vsce": "^2.22.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}

@@ -63,14 +63,35 @@ Download pre-built binaries from the [releases page](https://github.com/spring-r
 ## Editor Setup
 
 ### VS Code
-Install the spring-rs extension from the marketplace, or configure manually:
+
+#### Option 1: Install the Extension (Recommended)
+
+Install the official Spring RS LSP extension:
+
+1. From VSCode Marketplace (coming soon)
+2. Or install from VSIX:
+   ```bash
+   cd vscode
+   npm install
+   npm run package
+   code --install-extension spring-rs-lsp-0.1.0.vsix
+   ```
+
+The extension will automatically detect and start the language server.
+
+#### Option 2: Manual Configuration
+
+If you prefer manual setup, add to your `settings.json`:
 
 ```json
 {
-  "spring-lsp.serverPath": "/path/to/spring-lsp",
-  "spring-lsp.trace.server": "verbose"
+  "spring-rs-lsp.enable": true,
+  "spring-rs-lsp.serverPath": "/path/to/spring-lsp",
+  "spring-rs-lsp.trace.server": "verbose"
 }
 ```
+
+See [vscode/README.md](vscode/README.md) for more details.
 
 ### Neovim (with nvim-lspconfig)
 ```lua
