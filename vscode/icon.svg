@@ -1,5 +1,0 @@
-<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
-  <rect width="128" height="128" rx="16" fill="#68BD45"/>
-  <path d="M64 20 L100 40 L100 80 L64 100 L28 80 L28 40 Z" fill="white" stroke="#333" stroke-width="2"/>
-  <text x="64" y="70" font-family="Arial, sans-serif" font-size="32" font-weight="bold" text-anchor="middle" fill="#333">SR</text>
-</svg>

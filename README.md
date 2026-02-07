@@ -239,17 +239,12 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 git clone https://github.com/spring-rs/spring-lsp
 cd spring-lsp
 
-# 安装 Git hooks（自动格式化）
-./scripts/install-hooks.sh
-
 # 运行测试
 cargo test
 
 # 启动服务器
 cargo run
 ```
-
-详细的开发指南请参考 [DEVELOPMENT.md](docs/DEVELOPMENT.md)。
 
 ### Running Tests
 ```bash
@@ -266,15 +261,10 @@ cargo test --release
 cargo test --release performance
 ```
 
-### Release Process
-See [RELEASE.md](RELEASE.md) for detailed release instructions and tools.
-
 ## Documentation
 
-- [User Guide](docs/user-guide.md) - Complete usage documentation
-- [Configuration Reference](docs/configuration.md) - All configuration options
+- [VSCode Extension Guide](vscode/README.md) - VSCode extension usage
 - [API Documentation](https://docs.rs/spring-lsp) - Rust API docs
-- [Architecture Guide](docs/architecture.md) - Technical architecture
 - [Contributing Guide](CONTRIBUTING.md) - Development guidelines
 
 ## Changelog

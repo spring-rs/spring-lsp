@@ -92,6 +92,8 @@ pub struct RouteMacro {
     pub middlewares: Vec<String>,
     /// 处理器函数名称
     pub handler_name: String,
+    /// 是否是 OpenAPI 路由
+    pub is_openapi: bool,
     /// 宏在源代码中的位置
     pub range: Range,
 }
@@ -844,37 +846,69 @@ impl MacroAnalyzer {
     /// 提取路由宏
     fn extract_route_macro(&self, item_fn: &syn::ItemFn) -> Option<RouteMacro> {
         for attr in &item_fn.attrs {
-            // 检查各种路由宏
-            let method_and_path: Option<(Vec<HttpMethod>, String)> = if attr.path().is_ident("get")
-            {
-                self.extract_path_from_attr(attr)
-                    .map(|path| (vec![HttpMethod::Get], path))
-            } else if attr.path().is_ident("post") {
-                self.extract_path_from_attr(attr)
-                    .map(|path| (vec![HttpMethod::Post], path))
-            } else if attr.path().is_ident("put") {
-                self.extract_path_from_attr(attr)
-                    .map(|path| (vec![HttpMethod::Put], path))
-            } else if attr.path().is_ident("delete") {
-                self.extract_path_from_attr(attr)
-                    .map(|path| (vec![HttpMethod::Delete], path))
-            } else if attr.path().is_ident("patch") {
-                self.extract_path_from_attr(attr)
-                    .map(|path| (vec![HttpMethod::Patch], path))
-            } else if attr.path().is_ident("head") {
-                self.extract_path_from_attr(attr)
-                    .map(|path| (vec![HttpMethod::Head], path))
-            } else if attr.path().is_ident("options") {
-                self.extract_path_from_attr(attr)
-                    .map(|path| (vec![HttpMethod::Options], path))
-            } else if attr.path().is_ident("route") {
-                // route 宏可以指定多个方法
-                self.extract_route_attr(attr)
-            } else {
-                None
-            };
+            // 检查各种路由宏（包括普通路由和 OpenAPI 路由）
+            let method_path_and_openapi: Option<(Vec<HttpMethod>, String, bool)> =
+                if attr.path().is_ident("get") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Get], path, false))
+                } else if attr.path().is_ident("post") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Post], path, false))
+                } else if attr.path().is_ident("put") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Put], path, false))
+                } else if attr.path().is_ident("delete") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Delete], path, false))
+                } else if attr.path().is_ident("patch") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Patch], path, false))
+                } else if attr.path().is_ident("head") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Head], path, false))
+                } else if attr.path().is_ident("options") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Options], path, false))
+                } else if attr.path().is_ident("trace") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Trace], path, false))
+                } else if attr.path().is_ident("connect") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Connect], path, false))
+                // OpenAPI 路由宏
+                } else if attr.path().is_ident("get_api") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Get], path, true))
+                } else if attr.path().is_ident("post_api") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Post], path, true))
+                } else if attr.path().is_ident("put_api") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Put], path, true))
+                } else if attr.path().is_ident("delete_api") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Delete], path, true))
+                } else if attr.path().is_ident("patch_api") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Patch], path, true))
+                } else if attr.path().is_ident("head_api") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Head], path, true))
+                } else if attr.path().is_ident("options_api") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Options], path, true))
+                } else if attr.path().is_ident("trace_api") {
+                    self.extract_path_from_attr(attr)
+                        .map(|path| (vec![HttpMethod::Trace], path, true))
+                } else if attr.path().is_ident("route") {
+                    // route 宏可以指定多个方法
+                    self.extract_route_attr(attr)
+                        .map(|(methods, path)| (methods, path, false))
+                } else {
+                    None
+                };
 
-            if let Some((methods, path)) = method_and_path {
+            if let Some((methods, path, is_openapi)) = method_path_and_openapi {
                 // 提取中间件（如果有）
                 let middlewares = self.extract_middlewares(&item_fn.attrs);
 
@@ -883,6 +917,7 @@ impl MacroAnalyzer {
                     methods,
                     middlewares,
                     handler_name: item_fn.sig.ident.to_string(),
+                    is_openapi,
                     range: self.span_to_range(&item_fn.sig.ident.span()),
                 });
             }
@@ -1021,30 +1056,56 @@ impl MacroAnalyzer {
     /// 将类型转换为字符串
     fn type_to_string(&self, ty: &syn::Type) -> String {
         match ty {
-            syn::Type::Path(type_path) => type_path
-                .path
-                .segments
-                .iter()
-                .map(|seg| seg.ident.to_string())
-                .collect::<Vec<_>>()
-                .join("::"),
+            syn::Type::Path(type_path) => {
+                // 获取最后一个路径段（通常是类型名）
+                if let Some(last_segment) = type_path.path.segments.last() {
+                    let type_name = last_segment.ident.to_string();
+
+                    // 检查是否有泛型参数
+                    if let syn::PathArguments::AngleBracketed(args) = &last_segment.arguments {
+                        // 如果是包装类型（Arc, Option, LazyComponent 等），提取内部类型
+                        if matches!(
+                            type_name.as_str(),
+                            "Arc" | "Option" | "LazyComponent" | "Box" | "Rc"
+                        ) {
+                            // 提取第一个泛型参数
+                            if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
+                                return self.type_to_string(inner_ty);
+                            }
+                        }
+                    }
+
+                    type_name
+                } else {
+                    // 构建完整的路径
+                    type_path
+                        .path
+                        .segments
+                        .iter()
+                        .map(|seg| seg.ident.to_string())
+                        .collect::<Vec<_>>()
+                        .join("::")
+                }
+            }
             _ => "Unknown".to_string(),
         }
     }
 
     /// 将 Span 转换为 LSP Range
     ///
-    /// 注意：当前实现返回一个默认的 Range，因为 proc_macro2::Span 在非 proc-macro 上下文中
-    /// 无法获取准确的位置信息。在实际的 LSP 服务器中，我们会使用文档的行列信息。
-    fn span_to_range(&self, _span: &Span) -> Range {
+    /// 使用 proc-macro2 的 span-locations 特性获取准确的位置信息
+    fn span_to_range(&self, span: &Span) -> Range {
+        let start = span.start();
+        let end = span.end();
+
         Range {
             start: lsp_types::Position {
-                line: 0,
-                character: 0,
+                line: start.line.saturating_sub(1) as u32, // LSP 行号从 0 开始
+                character: start.column as u32,
             },
             end: lsp_types::Position {
-                line: 0,
-                character: 0,
+                line: end.line.saturating_sub(1) as u32,
+                character: end.column as u32,
             },
         }
     }

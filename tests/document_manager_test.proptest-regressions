@@ -1,7 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc c0ccc07cc2a54305b0e7ff1ba2dfa3e27ae9d6f6ea83103db04053d6e6abf5c9 # shrinks to uris = [Url { scheme: "file", cannot_be_a_base: false, username: "", password: None, host: None, port: None, path: "/_-.toml", query: None, fragment: None }, Url { scheme: "file", cannot_be_a_base: false, username: "", password: None, host: None, port: None, path: "/_-.toml", query: None, fragment: None }], contents = ["", "A"]

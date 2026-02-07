@@ -17,15 +17,20 @@
 //! - **Foundation Layer**: 基础设施和工具
 
 pub mod completion;
+pub mod component_scanner;
 pub mod config;
+pub mod config_scanner;
 pub mod di_validator;
 pub mod diagnostic;
 pub mod document;
 pub mod error;
 pub mod index;
+pub mod job_scanner;
 pub mod logging;
 pub mod macro_analyzer;
+pub mod plugin_scanner;
 pub mod route;
+pub mod route_scanner;
 pub mod schema;
 pub mod server;
 pub mod status;

@@ -184,20 +184,12 @@ impl TomlAnalyzer {
             // 检查是否悬停在配置节的某个属性上
             for (key, property) in &section.properties {
                 if self.position_in_range(position, property.range) {
-                    // 获取该配置项的 Schema
-                    if let Some(plugin_schema) = self.schema_provider.get_plugin_schema(prefix) {
-                        if let Some(property_schema) = plugin_schema.properties.get(key) {
-                            return Some(self.create_property_hover(
-                                prefix,
-                                key,
-                                property,
-                                property_schema,
-                            ));
-                        }
-                    }
+                    // 检查配置项是否在 Schema 中定义
+                    let is_defined = self.schema_provider.has_property(prefix, key);
 
-                    // 如果没有找到 Schema，返回基本信息
-                    return Some(self.create_basic_property_hover(prefix, key, property));
+                    return Some(
+                        self.create_basic_property_hover(prefix, key, property, is_defined),
+                    );
                 }
             }
         }
@@ -339,6 +331,7 @@ impl TomlAnalyzer {
         prefix: &str,
         key: &str,
         property: &ConfigProperty,
+        is_defined: bool,
     ) -> Hover {
         let mut hover_text = String::new();
 
@@ -357,8 +350,10 @@ impl TomlAnalyzer {
             self.config_value_type_name(&property.value)
         ));
 
-        // 添加警告
-        hover_text.push_str("⚠️ **警告**: 此配置项未在 Schema 中定义\n\n");
+        // 如果未在 Schema 中定义，添加警告
+        if !is_defined {
+            hover_text.push_str("⚠️ **警告**: 此配置项未在 Schema 中定义\n\n");
+        }
 
         // 添加配置文件位置提示
         hover_text.push_str("---\n\n");
@@ -465,17 +460,14 @@ impl TomlAnalyzer {
         // 2. 验证配置节和属性
         for (prefix, section) in &doc.config_sections {
             // 检查配置节是否在 Schema 中定义
-            if let Some(plugin_schema) = self.schema_provider.get_plugin_schema(prefix) {
+            if self.schema_provider.has_plugin(prefix) {
                 // 验证配置节中的属性
-                diagnostics.extend(self.validate_section(section, &plugin_schema));
-
-                // 检查必需的配置项是否存在
-                diagnostics.extend(self.validate_required_properties(section, &plugin_schema));
+                diagnostics.extend(self.validate_section_properties(section));
             } else {
                 // 配置节未在 Schema 中定义
                 diagnostics.push(Diagnostic {
                     range: section.range,
-                    severity: Some(DiagnosticSeverity::ERROR),
+                    severity: Some(DiagnosticSeverity::WARNING),
                     code: Some(lsp_types::NumberOrString::String(
                         "undefined-section".to_string(),
                     )),
@@ -489,7 +481,29 @@ impl TomlAnalyzer {
         diagnostics
     }
 
-    /// 验证环境变量语法
+    /// 验证配置节中的属性（简化版）
+    fn validate_section_properties(&self, section: &ConfigSection) -> Vec<Diagnostic> {
+        let mut diagnostics = Vec::new();
+
+        for (key, property) in &section.properties {
+            // 检查配置项是否在 Schema 中定义
+            if !self.schema_provider.has_property(&section.prefix, key) {
+                diagnostics.push(Diagnostic {
+                    range: property.range,
+                    severity: Some(DiagnosticSeverity::WARNING),
+                    code: Some(lsp_types::NumberOrString::String(
+                        "undefined-property".to_string(),
+                    )),
+                    message: format!("配置项 '{}' 未在 Schema 中定义", key),
+                    source: Some("spring-lsp".to_string()),
+                    ..Default::default()
+                });
+            }
+        }
+
+        diagnostics
+    }
+
     fn validate_env_var_syntax(&self, env_vars: &[EnvVarReference]) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
 
@@ -858,8 +872,11 @@ impl TomlAnalyzer {
     /// assert_eq!(doc.config_sections.len(), 1);
     /// ```
     pub fn parse(&self, content: &str) -> Result<TomlDocument, String> {
-        // 使用 taplo 解析 TOML
-        let parse_result = taplo::parser::parse(content);
+        // 预处理：提取环境变量引用并替换为占位符
+        let (preprocessed_content, env_vars) = self.preprocess_env_vars(content);
+
+        // 使用 taplo 解析预处理后的 TOML
+        let parse_result = taplo::parser::parse(&preprocessed_content);
 
         // 检查语法错误
         if !parse_result.errors.is_empty() {
@@ -874,9 +891,6 @@ impl TomlAnalyzer {
         // 转换为 DOM
         let root = parse_result.into_dom();
 
-        // 提取环境变量引用
-        let env_vars = self.extract_env_vars(content);
-
         // 提取配置节
         let config_sections = self.extract_config_sections(&root, content);
 
@@ -888,62 +902,138 @@ impl TomlAnalyzer {
         })
     }
 
-    /// 提取环境变量引用
+    /// 预处理环境变量引用
     ///
-    /// 识别 `${VAR:default}` 或 `${VAR}` 格式的环境变量插值
-    fn extract_env_vars(&self, content: &str) -> Vec<EnvVarReference> {
+    /// 将 `${VAR:default}` 或 `${VAR}` 替换为占位符，以便 TOML 解析器能够正常解析
+    /// 同时提取所有环境变量引用的位置信息
+    ///
+    /// **注意**：只处理引号外的环境变量引用，引号内的会被保留（因为它们是合法的 TOML 字符串）
+    fn preprocess_env_vars(&self, content: &str) -> (String, Vec<EnvVarReference>) {
+        let mut result = String::with_capacity(content.len());
         let mut env_vars = Vec::new();
-        let mut line = 0;
+        let mut line = 0u32;
         let mut line_start = 0;
+        let mut i = 0;
+        let chars: Vec<char> = content.chars().collect();
+        let mut in_string = false; // 跟踪是否在字符串内
+        let mut in_multiline_string = false; // 跟踪是否在多行字符串内
+        let mut escape_next = false; // 跟踪下一个字符是否被转义
 
-        for (byte_offset, _) in content.char_indices() {
+        while i < chars.len() {
             // 更新行号和行起始位置
-            if content[byte_offset..].starts_with('\n') {
+            if chars[i] == '\n' {
                 line += 1;
-                line_start = byte_offset + 1;
+                line_start = i + 1;
             }
 
-            // 查找 ${
-            if content[byte_offset..].starts_with("${") {
-                // 查找对应的 }
-                if let Some(end_offset) = content[byte_offset + 2..].find('}') {
-                    let end_offset = byte_offset + 2 + end_offset;
-                    let var_content = &content[byte_offset + 2..end_offset];
+            // 处理转义字符
+            if escape_next {
+                result.push(chars[i]);
+                escape_next = false;
+                i += 1;
+                continue;
+            }
 
-                    // 解析变量名和默认值
-                    let (name, default) = if let Some(colon_pos) = var_content.find(':') {
-                        let name = var_content[..colon_pos].to_string();
-                        let default = Some(var_content[colon_pos + 1..].to_string());
-                        (name, default)
-                    } else {
-                        (var_content.to_string(), None)
-                    };
+            // 检查转义符
+            if chars[i] == '\\' && (in_string || in_multiline_string) {
+                escape_next = true;
+                result.push(chars[i]);
+                i += 1;
+                continue;
+            }
 
-                    // 计算位置
-                    let start_char = byte_offset - line_start;
-                    let end_char = end_offset + 1 - line_start;
+            // 检查多行字符串（三个引号）
+            if i + 2 < chars.len() && chars[i] == '"' && chars[i + 1] == '"' && chars[i + 2] == '"'
+            {
+                in_multiline_string = !in_multiline_string;
+                result.push_str("\"\"\"");
+                i += 3;
+                continue;
+            }
 
-                    env_vars.push(EnvVarReference {
-                        name,
-                        default,
-                        range: Range {
-                            start: lsp_types::Position {
-                                line: line as u32,
-                                character: start_char as u32,
+            // 检查普通字符串
+            if chars[i] == '"' && !in_multiline_string {
+                in_string = !in_string;
+                result.push(chars[i]);
+                i += 1;
+                continue;
+            }
+
+            // 只在引号外处理环境变量引用
+            if !in_string && !in_multiline_string {
+                // 查找 ${
+                if i + 1 < chars.len() && chars[i] == '$' && chars[i + 1] == '{' {
+                    // 查找对应的 }
+                    let mut j = i + 2;
+                    while j < chars.len() && chars[j] != '}' {
+                        j += 1;
+                    }
+
+                    if j < chars.len() {
+                        // 找到了完整的环境变量引用
+                        let var_content: String = chars[i + 2..j].iter().collect();
+
+                        // 解析变量名和默认值
+                        let (name, default) = if let Some(colon_pos) = var_content.find(':') {
+                            let name = var_content[..colon_pos].to_string();
+                            let default = Some(var_content[colon_pos + 1..].to_string());
+                            (name, default)
+                        } else {
+                            (var_content.to_string(), None)
+                        };
+
+                        // 计算位置
+                        let start_char = i - line_start;
+                        let end_char = j + 1 - line_start;
+
+                        env_vars.push(EnvVarReference {
+                            name: name.clone(),
+                            default: default.clone(),
+                            range: Range {
+                                start: Position {
+                                    line,
+                                    character: start_char as u32,
+                                },
+                                end: Position {
+                                    line,
+                                    character: end_char as u32,
+                                },
                             },
-                            end: lsp_types::Position {
-                                line: line as u32,
-                                character: end_char as u32,
-                            },
-                        },
-                    });
+                        });
+
+                        // 替换为占位符（使用默认值或空字符串）
+                        let placeholder = if let Some(default_val) = &default {
+                            // 如果默认值是布尔值或数字，直接使用
+                            if default_val == "true" || default_val == "false" {
+                                default_val.clone()
+                            } else if default_val.parse::<i64>().is_ok()
+                                || default_val.parse::<f64>().is_ok()
+                            {
+                                default_val.clone()
+                            } else {
+                                // 字符串需要加引号
+                                format!("\"{}\"", default_val.replace('"', "\\\""))
+                            }
+                        } else {
+                            // 没有默认值，使用空字符串
+                            "\"\"".to_string()
+                        };
+
+                        result.push_str(&placeholder);
+                        i = j + 1;
+                        continue;
+                    }
                 }
             }
+
+            result.push(chars[i]);
+            i += 1;
         }
 
-        env_vars
+        (result, env_vars)
     }
 
+    /// 提取环境变量引用
     /// 提取配置节
     ///
     /// 遍历 TOML DOM 树，提取所有配置节和属性
@@ -1120,5 +1210,93 @@ impl TomlAnalyzer {
             line: line as u32,
             character: character as u32,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_preprocess_env_vars_in_quotes() {
+        let schema_provider = SchemaProvider::new();
+        let analyzer = TomlAnalyzer::new(schema_provider);
+
+        // 测试：引号内的环境变量应该保持不变
+        let content = r#"test_pay_amount = "${TEST_PAY_AMOUNT:false}""#;
+        let (preprocessed, env_vars) = analyzer.preprocess_env_vars(content);
+
+        println!("原始: {}", content);
+        println!("预处理后: {}", preprocessed);
+        println!("环境变量数量: {}", env_vars.len());
+
+        // 引号内的环境变量不应该被提取
+        assert_eq!(env_vars.len(), 0, "引号内的环境变量不应该被提取");
+        assert_eq!(preprocessed, content, "引号内的内容不应该被修改");
+    }
+
+    #[test]
+    fn test_preprocess_env_vars_without_quotes() {
+        let schema_provider = SchemaProvider::new();
+        let analyzer = TomlAnalyzer::new(schema_provider);
+
+        // 测试：引号外的环境变量应该被替换
+        let content = r#"test_pay_amount = ${TEST_PAY_AMOUNT:false}"#;
+        let (preprocessed, env_vars) = analyzer.preprocess_env_vars(content);
+
+        println!("原始: {}", content);
+        println!("预处理后: {}", preprocessed);
+        println!("环境变量数量: {}", env_vars.len());
+
+        // 应该提取到一个环境变量
+        assert_eq!(env_vars.len(), 1);
+        assert_eq!(env_vars[0].name, "TEST_PAY_AMOUNT");
+        assert_eq!(env_vars[0].default, Some("false".to_string()));
+
+        // 应该被替换为布尔值
+        assert_eq!(preprocessed, "test_pay_amount = false");
+    }
+
+    #[test]
+    fn test_parse_with_quoted_env_var() {
+        let schema_provider = SchemaProvider::new();
+        let analyzer = TomlAnalyzer::new(schema_provider);
+
+        // 测试：带引号的环境变量应该能正常解析
+        let content = r#"
+[pay]
+test_pay_amount = "${TEST_PAY_AMOUNT:false}"
+api_key = "${API_KEY:test_key}"
+"#;
+
+        let result = analyzer.parse(content);
+        assert!(
+            result.is_ok(),
+            "带引号的环境变量应该能正常解析: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn test_parse_without_quoted_env_var() {
+        let schema_provider = SchemaProvider::new();
+        let analyzer = TomlAnalyzer::new(schema_provider);
+
+        // 测试：不带引号的环境变量应该能正常解析（被预处理后）
+        let content = r#"
+[pay]
+test_pay_amount = ${TEST_PAY_AMOUNT:false}
+port = ${PORT:8080}
+"#;
+
+        let result = analyzer.parse(content);
+        assert!(
+            result.is_ok(),
+            "不带引号的环境变量应该能正常解析: {:?}",
+            result.err()
+        );
+
+        let doc = result.unwrap();
+        assert_eq!(doc.env_vars.len(), 2, "应该提取到 2 个环境变量");
     }
 }

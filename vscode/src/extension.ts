@@ -1,127 +1,320 @@
-import * as path from 'path';
 import * as vscode from 'vscode';
+import { LocalAppManager } from './controllers/LocalAppManager';
+import { LocalAppController } from './controllers/LocalAppController';
+import { LanguageClientManager } from './languageClient/LanguageClientManager';
+import { CommandManager } from './commands';
+import { SpringApp } from './models/SpringApp';
 import {
-  LanguageClient,
-  LanguageClientOptions,
-  ServerOptions,
-  TransportKind,
-} from 'vscode-languageclient/node';
+  AppsTreeDataProvider,
+  ComponentsTreeDataProvider,
+  RoutesTreeDataProvider,
+  JobsTreeDataProvider,
+  PluginsTreeDataProvider,
+  ConfigurationsTreeDataProvider
+} from './views';
+import { GutterDecorationManager } from './gutter';
 
-let client: LanguageClient | undefined;
-
-export async function activate(context: vscode.ExtensionContext) {
-  const config = vscode.workspace.getConfiguration('spring-rs-lsp');
-  
-  if (!config.get<boolean>('enable', true)) {
-    return;
-  }
-
-  const serverPath = await getServerPath(config);
-  
-  if (!serverPath) {
-    vscode.window.showErrorMessage(
-      'Spring RS LSP: Could not find spring-lsp executable. Please install it or configure the path.'
-    );
-    return;
-  }
-
-  const serverOptions: ServerOptions = {
-    command: serverPath,
-    args: [],
-    transport: TransportKind.stdio,
-  };
-
-  const clientOptions: LanguageClientOptions = {
-    documentSelector: [
-      { scheme: 'file', language: 'toml', pattern: '**/.spring-lsp.toml' },
-      { scheme: 'file', language: 'toml', pattern: '**/config/app*.toml' },
-    ],
-    synchronize: {
-      fileEvents: vscode.workspace.createFileSystemWatcher('**/*.toml'),
-    },
-  };
-
-  client = new LanguageClient(
-    'spring-rs-lsp',
-    'Spring RS Language Server',
-    serverOptions,
-    clientOptions
-  );
+/**
+ * 扩展激活函数
+ * 
+ * 当满足激活条件时，VSCode 会调用此函数
+ */
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  console.log('Spring LSP extension is now activating...');
 
   try {
-    await client.start();
-    vscode.window.showInformationMessage('Spring RS LSP started successfully');
-  } catch (error) {
-    vscode.window.showErrorMessage(
-      `Failed to start Spring RS LSP: ${error}`
+    // 1. 创建输出通道
+    const outputChannel = vscode.window.createOutputChannel('Spring LSP');
+    context.subscriptions.push(outputChannel);
+    outputChannel.appendLine('Spring LSP extension starting...');
+
+    // 2. 创建语言客户端管理器
+    outputChannel.appendLine('Initializing language client...');
+    const languageClient = new LanguageClientManager(context);
+
+    // 3. 创建应用管理器
+    outputChannel.appendLine('Initializing app manager...');
+    const appManager = new LocalAppManager();
+    context.subscriptions.push(appManager);
+    
+    // 初始化应用管理器（启动工作空间扫描）
+    await appManager.initialize();
+    outputChannel.appendLine('App manager initialized');
+
+    // 4. 创建应用控制器
+    outputChannel.appendLine('Initializing app controller...');
+    const appController = new LocalAppController(appManager, context);
+
+    // 5. 注册视图
+    outputChannel.appendLine('Registering views...');
+    const { configurationsProvider, refreshInitialApp } = registerViews(context, appManager, languageClient);
+
+    // 6. 注册命令
+    outputChannel.appendLine('Registering commands...');
+    const commandManager = new CommandManager(
+      context,
+      appManager,
+      appController,
+      languageClient
     );
-  }
-}
+    commandManager.registerCommands();
+    commandManager.setConfigurationsProvider(configurationsProvider);
+    context.subscriptions.push(commandManager);
 
-export async function deactivate(): Promise<void> {
-  if (client) {
-    await client.stop();
-  }
-}
+    // 6.5. 初始化 Gutter 装饰管理器（可选功能）
+    outputChannel.appendLine('Initializing gutter decorations...');
+    const gutterManager = new GutterDecorationManager(context);
+    gutterManager.registerCommands();
+    context.subscriptions.push(gutterManager);
 
-async function getServerPath(
-  config: vscode.WorkspaceConfiguration
-): Promise<string | undefined> {
-  // 1. Check user-configured path
-  const configuredPath = config.get<string>('serverPath');
-  if (configuredPath && configuredPath.trim() !== '') {
-    return configuredPath;
-  }
+    // 7. 设置调试会话事件监听器
+    outputChannel.appendLine('Setting up debug session listeners...');
+    setupDebugSessionListeners(context, appController);
 
-  // 2. Check if spring-lsp is in PATH
-  const pathCommand = process.platform === 'win32' ? 'where' : 'which';
-  try {
-    const { execSync } = require('child_process');
-    const result = execSync(`${pathCommand} spring-lsp`, {
-      encoding: 'utf8',
-    }).trim();
-    if (result) {
-      return result.split('\n')[0];
-    }
-  } catch {
-    // Not in PATH, continue
-  }
-
-  // 3. Check common installation locations
-  const possiblePaths = [
-    path.join(process.env.HOME || '', '.cargo', 'bin', 'spring-lsp'),
-    path.join(process.env.USERPROFILE || '', '.cargo', 'bin', 'spring-lsp.exe'),
-    '/usr/local/bin/spring-lsp',
-  ];
-
-  for (const p of possiblePaths) {
+    // 8. 启动语言服务器
+    outputChannel.appendLine('Starting language server...');
     try {
-      const fs = require('fs');
-      if (fs.existsSync(p)) {
-        return p;
-      }
-    } catch {
-      continue;
+      await languageClient.start();
+      outputChannel.appendLine('Language server started successfully');
+      
+      // 语言服务器启动后，刷新配置视图
+      outputChannel.appendLine('Refreshing configurations view...');
+      await configurationsProvider.refresh();
+      
+      // 语言服务器启动后，刷新初始应用的所有视图
+      outputChannel.appendLine('Refreshing initial app views...');
+      refreshInitialApp();
+    } catch (error) {
+      outputChannel.appendLine(
+        `Warning: Language server failed to start: ${error instanceof Error ? error.message : String(error)}`
+      );
+      vscode.window.showWarningMessage(
+        'Spring LSP language server failed to start. Some features may not be available.',
+        'Open Settings',
+        'View Documentation'
+      ).then(selection => {
+        if (selection === 'Open Settings') {
+          vscode.commands.executeCommand(
+            'workbench.action.openSettings',
+            'spring-rs.serverPath'
+          );
+        } else if (selection === 'View Documentation') {
+          vscode.env.openExternal(
+            vscode.Uri.parse('https://spring-rs.github.io/')
+          );
+        }
+      });
     }
-  }
 
-  // 4. Prompt user to install
-  const install = await vscode.window.showWarningMessage(
-    'Spring RS LSP server not found. Would you like to install it?',
-    'Install',
-    'Configure Path'
+    // 9. 设置上下文变量
+    await vscode.commands.executeCommand('setContext', 'spring:activated', true);
+
+    // 10. 显示欢迎消息（仅首次激活）
+    const hasShownWelcome = context.globalState.get<boolean>('spring.hasShownWelcome');
+    if (!hasShownWelcome) {
+      const selection = await vscode.window.showInformationMessage(
+        'Welcome to Spring LSP for Rust! 🚀',
+        'Show Welcome Page',
+        'Dismiss'
+      );
+      if (selection === 'Show Welcome Page') {
+        await vscode.commands.executeCommand('spring-rs.showWelcome');
+      }
+      await context.globalState.update('spring.hasShownWelcome', true);
+    }
+
+    outputChannel.appendLine('Spring LSP extension activated successfully!');
+    console.log('Spring LSP extension is now active!');
+  } catch (error) {
+    console.error('Failed to activate Spring LSP extension:', error);
+    vscode.window.showErrorMessage(
+      `Failed to activate Spring LSP extension: ${error instanceof Error ? error.message : String(error)}`
+    );
+    throw error;
+  }
+}
+
+/**
+ * 注册所有视图
+ */
+function registerViews(
+  context: vscode.ExtensionContext,
+  appManager: LocalAppManager,
+  languageClient: LanguageClientManager
+): { configurationsProvider: ConfigurationsTreeDataProvider; refreshInitialApp: () => void } {
+  // 1. 注册 Apps 视图（带应用选择功能）
+  const appsProvider = new AppsTreeDataProvider(appManager);
+  const appsView = vscode.window.createTreeView('spring.apps', {
+    treeDataProvider: appsProvider,
+    showCollapseAll: false,
+    canSelectMany: false  // 只能选择一个应用
+  });
+  context.subscriptions.push(appsView);
+
+  // 2. 注册 Components 视图
+  const componentsProvider = new ComponentsTreeDataProvider(languageClient, context);
+  const componentsView = vscode.window.createTreeView('spring.components', {
+    treeDataProvider: componentsProvider,
+    showCollapseAll: true
+  });
+  context.subscriptions.push(componentsView);
+
+  // 3. 注册 Routes 视图
+  const routesProvider = new RoutesTreeDataProvider(languageClient, context);
+  const routesView = vscode.window.createTreeView('spring.routes', {
+    treeDataProvider: routesProvider,
+    showCollapseAll: true
+  });
+  context.subscriptions.push(routesView);
+
+  // 4. 注册 Jobs 视图
+  const jobsProvider = new JobsTreeDataProvider(languageClient, context);
+  const jobsView = vscode.window.createTreeView('spring.jobs', {
+    treeDataProvider: jobsProvider,
+    showCollapseAll: true
+  });
+  context.subscriptions.push(jobsView);
+
+  // 5. 注册 Plugins 视图
+  const pluginsProvider = new PluginsTreeDataProvider(languageClient);
+  const pluginsView = vscode.window.createTreeView('spring.plugins', {
+    treeDataProvider: pluginsProvider,
+    showCollapseAll: true
+  });
+  context.subscriptions.push(pluginsView);
+
+  // 6. 注册 Configurations 视图
+  const configurationsProvider = new ConfigurationsTreeDataProvider(languageClient, context);
+  const configurationsView = vscode.window.createTreeView('spring.configurations', {
+    treeDataProvider: configurationsProvider,
+    showCollapseAll: true
+  });
+  context.subscriptions.push(configurationsView);
+
+  // 监听应用选择事件，刷新所有视图（必须在监听复选框事件之前设置）
+  appsProvider.onDidSelectApp((app: SpringApp) => {
+    console.log(`App selected: ${app.name}, refreshing all views...`);
+    
+    // 刷新所有视图
+    componentsProvider.refresh(app);
+    routesProvider.refresh(app);
+    jobsProvider.refresh(app);
+    pluginsProvider.refresh(app);
+    
+    // 更新视图描述（显示当前应用名称）
+    componentsView.description = app.name;
+    routesView.description = app.name;
+    jobsView.description = app.name;
+    pluginsView.description = app.name;
+  });
+
+  // 监听复选框变化事件
+  appsView.onDidChangeCheckboxState((event) => {
+    for (const [item, state] of event.items) {
+      if (state === vscode.TreeItemCheckboxState.Checked && 'app' in item) {
+        // 用户选中了某个应用
+        appsProvider.selectApp((item as any).app);
+        break;
+      }
+    }
+  });
+
+  // 创建初始刷新函数（在语言服务器启动后调用）
+  const refreshInitialApp = () => {
+    const initialApp = appsProvider.getSelectedApp();
+    if (initialApp) {
+      console.log(`[After LSP ready] Initial app selected: ${initialApp.name}, refreshing all views...`);
+      componentsProvider.refresh(initialApp);
+      routesProvider.refresh(initialApp);
+      jobsProvider.refresh(initialApp);
+      pluginsProvider.refresh(initialApp);
+      
+      componentsView.description = initialApp.name;
+      routesView.description = initialApp.name;
+      jobsView.description = initialApp.name;
+      pluginsView.description = initialApp.name;
+    }
+  };
+
+  // 监听应用状态变化，刷新当前选中应用的视图
+  appManager.onDidChangeApps((app: SpringApp | undefined) => {
+    const selectedApp = appsProvider.getSelectedApp();
+    
+    if (app && selectedApp && app.path === selectedApp.path) {
+      // 当前选中的应用状态变化，刷新视图
+      if (app.state === 'running') {
+        componentsProvider.refresh(app);
+        routesProvider.refresh(app);
+        jobsProvider.refresh(app);
+        pluginsProvider.refresh(app);
+      } else if (app.state === 'inactive') {
+        // 应用停止，刷新为静态模式
+        componentsProvider.refresh(app);
+        routesProvider.refresh(app);
+        jobsProvider.refresh(app);
+        pluginsProvider.refresh(app);
+      }
+    }
+    
+    // 更新上下文变量
+    const hasRunningApp = appManager.getAppList().some(a => a.state === 'running');
+    vscode.commands.executeCommand('setContext', 'spring:hasRunningApp', hasRunningApp);
+  });
+
+  // 初始化配置视图
+  configurationsProvider.refresh();
+
+  // 监听文档变化，刷新配置视图
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument((document) => {
+      if (document.languageId === 'rust') {
+        configurationsProvider.refresh();
+      }
+    })
   );
 
-  if (install === 'Install') {
-    vscode.env.openExternal(
-      vscode.Uri.parse('https://github.com/spring-rs/spring-lsp#installation')
-    );
-  } else if (install === 'Configure Path') {
-    vscode.commands.executeCommand(
-      'workbench.action.openSettings',
-      'spring-rs-lsp.serverPath'
-    );
-  }
+  return { configurationsProvider, refreshInitialApp };
+}
 
-  return undefined;
+/**
+ * 设置调试会话事件监听器
+ */
+function setupDebugSessionListeners(
+  context: vscode.ExtensionContext,
+  appController: LocalAppController
+): void {
+  // 监听调试会话启动
+  const onDidStartDebugSession = vscode.debug.onDidStartDebugSession(session => {
+    // 检查是否是 Rust 调试会话
+    if (session.type === 'lldb' || session.type === 'rust' || session.type === 'cppdbg') {
+      appController.onDidStartApp(session);
+    }
+  });
+  context.subscriptions.push(onDidStartDebugSession);
+
+  // 监听调试会话终止
+  const onDidTerminateDebugSession = vscode.debug.onDidTerminateDebugSession(session => {
+    if (session.type === 'lldb' || session.type === 'rust' || session.type === 'cppdbg') {
+      appController.onDidStopApp(session);
+    }
+  });
+  context.subscriptions.push(onDidTerminateDebugSession);
+}
+
+/**
+ * 扩展停用函数
+ * 
+ * 当扩展被停用时，VSCode 会调用此函数
+ */
+export function deactivate(): void {
+  console.log('Spring LSP extension is now deactivating...');
+  
+  // 清理上下文变量
+  vscode.commands.executeCommand('setContext', 'spring:activated', false);
+  vscode.commands.executeCommand('setContext', 'spring:hasRunningApp', false);
+  
+  // 注意：所有资源都通过 context.subscriptions 自动清理
+  // 不需要手动调用 dispose
+  
+  console.log('Spring LSP extension deactivated');
 }

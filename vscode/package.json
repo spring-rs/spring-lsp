@@ -1,49 +1,407 @@
 {
-  "name": "spring-rs-lsp",
-  "displayName": "Spring RS Language Server",
-  "description": "Language Server for Spring RS framework TOML configuration files",
+  "name": "spring-rs",
+  "displayName": "Spring RS",
+  "description": "Language Server Protocol support and application management for spring-rs framework",
   "version": "0.1.0",
   "publisher": "spring-rs",
   "license": "MIT OR Apache-2.0",
-  "icon": "icon.svg",
+  "icon": "resources/logo.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/spring-rs/spring-lsp"
   },
+  "bugs": {
+    "url": "https://github.com/spring-rs/spring-lsp/issues"
+  },
+  "homepage": "https://spring-rs.github.io/spring-lsp",
   "engines": {
     "vscode": "^1.75.0"
   },
   "categories": [
     "Programming Languages",
-    "Linters"
+    "Linters",
+    "Other"
   ],
   "keywords": [
     "spring-rs",
-    "toml",
+    "spring",
     "rust",
-    "language-server"
+    "toml",
+    "language-server",
+    "lsp",
+    "framework"
   ],
   "activationEvents": [
     "workspaceContains:**/.spring-lsp.toml",
-    "workspaceContains:**/config/app.toml"
+    "workspaceContains:**/config/app.toml",
+    "workspaceContains:**/config/app-*.toml",
+    "workspaceContains:**/Cargo.toml",
+    "onLanguage:toml",
+    "onLanguage:rust"
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "spring-rs",
+          "title": "Spring RS",
+          "icon": "resources/logo-sidebar.svg"
+        }
+      ]
+    },
+    "views": {
+      "spring-rs": [
+        {
+          "id": "spring.apps",
+          "name": "Apps",
+          "contextualTitle": "Spring RS Apps"
+        },
+        {
+          "id": "spring.configurations",
+          "name": "Configurations",
+          "contextualTitle": "Spring RS Configurations"
+        },
+        {
+          "id": "spring.components",
+          "name": "Components",
+          "contextualTitle": "Spring RS Components"
+        },
+        {
+          "id": "spring.routes",
+          "name": "Routes",
+          "contextualTitle": "Spring RS Routes"
+        },
+        {
+          "id": "spring.jobs",
+          "name": "Jobs",
+          "contextualTitle": "Spring RS Jobs"
+        },
+        {
+          "id": "spring.plugins",
+          "name": "Plugins",
+          "contextualTitle": "Spring RS Plugins"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "spring-rs.refresh",
+        "title": "Refresh Apps",
+        "category": "Spring RS",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "spring-rs.app.run",
+        "title": "Run",
+        "category": "Spring RS",
+        "icon": "$(play)"
+      },
+      {
+        "command": "spring-rs.app.debug",
+        "title": "Debug",
+        "category": "Spring RS",
+        "icon": "$(debug-alt-small)"
+      },
+      {
+        "command": "spring-rs.app.stop",
+        "title": "Stop",
+        "category": "Spring RS",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "spring-rs.app.open",
+        "title": "Open in Browser",
+        "category": "Spring RS",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "spring-rs.app.runWithProfile",
+        "title": "Run with Profile...",
+        "category": "Spring RS"
+      },
+      {
+        "command": "spring-rs.app.debugWithProfile",
+        "title": "Debug with Profile...",
+        "category": "Spring RS"
+      },
+      {
+        "command": "spring-rs.app.runMultiple",
+        "title": "Run Multiple Apps...",
+        "category": "Spring RS",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "spring-rs.app.stopMultiple",
+        "title": "Stop Multiple Apps...",
+        "category": "Spring RS",
+        "icon": "$(stop-circle)"
+      },
+      {
+        "command": "spring.component.navigate",
+        "title": "Go to Definition",
+        "category": "Spring RS",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "spring.component.showDependencies",
+        "title": "Show Dependencies",
+        "category": "Spring RS",
+        "icon": "$(type-hierarchy-sub)"
+      },
+      {
+        "command": "spring.route.navigate",
+        "title": "Go to Handler",
+        "category": "Spring RS",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "spring.route.open",
+        "title": "Open in Browser",
+        "category": "Spring RS",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "spring.job.navigate",
+        "title": "Go to Definition",
+        "category": "Spring RS",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "spring.plugin.navigate",
+        "title": "Go to Definition",
+        "category": "Spring RS",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "spring-rs.showWelcome",
+        "title": "Show Welcome Page",
+        "category": "Spring RS"
+      },
+      {
+        "command": "spring-rs.openDocumentation",
+        "title": "Open Documentation",
+        "category": "Spring RS",
+        "icon": "$(book)"
+      },
+      {
+        "command": "spring.configuration.refresh",
+        "title": "Refresh Configurations",
+        "category": "Spring RS",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "spring.configuration.navigate",
+        "title": "Go to Definition",
+        "category": "Spring RS",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "spring.configuration.copyExample",
+        "title": "Copy Config Example",
+        "category": "Spring RS",
+        "icon": "$(copy)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "spring-rs.refresh",
+          "when": "view == spring.apps",
+          "group": "navigation@5"
+        },
+        {
+          "command": "spring-rs.app.runMultiple",
+          "when": "view == spring.apps",
+          "group": "navigation@2"
+        },
+        {
+          "command": "spring-rs.app.stopMultiple",
+          "when": "view == spring.apps",
+          "group": "navigation@3"
+        },
+        {
+          "command": "spring.configuration.refresh",
+          "when": "view == spring.configurations",
+          "group": "navigation@5"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "spring-rs.app.run",
+          "when": "view == spring.apps && viewItem == SpringApp_inactive",
+          "group": "inline@5"
+        },
+        {
+          "command": "spring-rs.app.debug",
+          "when": "view == spring.apps && viewItem == SpringApp_inactive",
+          "group": "inline@6"
+        },
+        {
+          "command": "spring-rs.app.stop",
+          "when": "view == spring.apps && viewItem == SpringApp_running",
+          "group": "inline@8"
+        },
+        {
+          "command": "spring-rs.app.open",
+          "when": "view == spring.apps && viewItem == SpringApp_running",
+          "group": "inline@a"
+        },
+        {
+          "command": "spring-rs.app.runWithProfile",
+          "when": "view == spring.apps && viewItem == SpringApp_inactive",
+          "group": "action@7"
+        },
+        {
+          "command": "spring-rs.app.debugWithProfile",
+          "when": "view == spring.apps && viewItem == SpringApp_inactive",
+          "group": "action@8"
+        },
+        {
+          "command": "spring.component.navigate",
+          "when": "view == spring.components && viewItem =~ /spring:component/",
+          "group": "inline@5"
+        },
+        {
+          "command": "spring.component.showDependencies",
+          "when": "view == spring.components && viewItem =~ /spring:component/",
+          "group": "action@5"
+        },
+        {
+          "command": "spring.route.navigate",
+          "when": "view == spring.routes && viewItem == spring:route",
+          "group": "inline@5"
+        },
+        {
+          "command": "spring.route.open",
+          "when": "view == spring.routes && viewItem =~ /spring:route.*\\+GET/",
+          "group": "inline@6"
+        },
+        {
+          "command": "spring.job.navigate",
+          "when": "view == spring.jobs && viewItem == spring:job",
+          "group": "inline@5"
+        },
+        {
+          "command": "spring.plugin.navigate",
+          "when": "view == spring.plugins && viewItem == spring:plugin",
+          "group": "inline@5"
+        },
+        {
+          "command": "spring.configuration.navigate",
+          "when": "view == spring.configurations && viewItem == spring:configStruct",
+          "group": "inline@5"
+        },
+        {
+          "command": "spring.configuration.copyExample",
+          "when": "view == spring.configurations && viewItem == spring:configStruct",
+          "group": "action@5"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "spring-rs.app.run",
+          "when": "false"
+        },
+        {
+          "command": "spring-rs.app.debug",
+          "when": "false"
+        },
+        {
+          "command": "spring-rs.app.stop",
+          "when": "false"
+        },
+        {
+          "command": "spring-rs.app.open",
+          "when": "false"
+        },
+        {
+          "command": "spring-rs.app.runWithProfile",
+          "when": "false"
+        },
+        {
+          "command": "spring-rs.app.debugWithProfile",
+          "when": "false"
+        },
+        {
+          "command": "spring.component.navigate",
+          "when": "false"
+        },
+        {
+          "command": "spring.component.showDependencies",
+          "when": "false"
+        },
+        {
+          "command": "spring.route.navigate",
+          "when": "false"
+        },
+        {
+          "command": "spring.route.open",
+          "when": "false"
+        },
+        {
+          "command": "spring.job.navigate",
+          "when": "false"
+        },
+        {
+          "command": "spring.plugin.navigate",
+          "when": "false"
+        },
+        {
+          "command": "spring.configuration.refresh",
+          "when": "false"
+        },
+        {
+          "command": "spring.configuration.navigate",
+          "when": "false"
+        },
+        {
+          "command": "spring.configuration.copyExample",
+          "when": "false"
+        }
+      ]
+    },
     "configuration": {
       "type": "object",
-      "title": "Spring RS LSP",
+      "title": "Spring RS",
       "properties": {
-        "spring-rs-lsp.enable": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable/disable the Spring RS language server"
-        },
-        "spring-rs-lsp.serverPath": {
+        "spring-rs.serverPath": {
           "type": "string",
           "default": "",
-          "description": "Path to spring-lsp executable (leave empty to use bundled version)"
+          "description": "Path to spring-lsp executable (leave empty to use bundled version or system PATH)"
         },
-        "spring-rs-lsp.trace.server": {
+        "spring-rs.openWith": {
+          "type": "string",
+          "enum": [
+            "integrated",
+            "external"
+          ],
+          "default": "integrated",
+          "description": "Which browser to use when opening apps"
+        },
+        "spring-rs.openUrl": {
+          "type": "string",
+          "default": "http://localhost:{port}{contextPath}",
+          "description": "URL template for opening apps. Use {port} and {contextPath} as placeholders"
+        },
+        "spring-rs.enableGutter": {
+          "type": "string",
+          "enum": [
+            "on",
+            "off"
+          ],
+          "default": "on",
+          "description": "Show gutter icons in editors for components, routes, and jobs"
+        },
+        "spring-rs.env": {
+          "type": "object",
+          "default": {},
+          "description": "Environment variables to set when running apps",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "spring-rs.trace.server": {
           "type": "string",
           "enum": [
             "off",
@@ -71,20 +429,37 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile",
-    "lint": "eslint src --ext ts",
+    "pretest": "npm run compile && npm run compile-tests",
+    "compile-tests": "tsc -p ./test/tsconfig.json",
+    "test": "node ./out/test/runTest.js",
+    "lint": "eslint src test --ext ts",
+    "lint:fix": "eslint src test --ext ts --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
+    "clean": "bash scripts/clean.sh",
+    "rebuild": "npm run clean && npm run compile",
+    "verify": "node scripts/verify.js",
     "package": "vsce package"
   },
   "devDependencies": {
     "@types/node": "^18.0.0",
     "@types/vscode": "^1.75.0",
+    "@types/mocha": "^10.0.0",
+    "@types/glob": "^8.1.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/test-electron": "^2.3.0",
     "eslint": "^8.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "glob": "^10.3.0",
+    "mocha": "^10.2.0",
+    "prettier": "^3.0.0",
     "typescript": "^5.0.0",
     "@vscode/vsce": "^2.22.0"
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "vscode-languageclient": "^9.0.1",
+    "@iarna/toml": "^2.2.5"
   }
 }

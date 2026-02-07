@@ -134,25 +134,8 @@ impl CompletionEngine {
 
         // 3. 检查是否在配置节内
         if let Some(section) = self.find_section_at_position(doc, position) {
-            // 检查是否在值位置（可能需要枚举值补全）
-            if let Some(property_name) = self.find_property_at_position(section, position) {
-                if let Some(property_schema) = self
-                    .toml_analyzer
-                    .schema_provider()
-                    .get_property_schema(&section.prefix, &property_name)
-                {
-                    // 提供枚举值补全
-                    if let crate::schema::TypeInfo::String {
-                        enum_values: Some(ref values),
-                        ..
-                    } = property_schema.type_info
-                    {
-                        return self.complete_enum_values(values);
-                    }
-                }
-            }
-
-            // 提供配置项补全
+            // TODO: 实现基于 JSON Schema 的枚举值补全
+            // 目前只提供配置项补全
             return self.complete_config_properties(section);
         }
 
@@ -252,15 +235,7 @@ impl CompletionEngine {
         prefixes
             .into_iter()
             .map(|prefix: String| {
-                let plugin_schema = self
-                    .toml_analyzer
-                    .schema_provider()
-                    .get_plugin_schema(&prefix);
-                let description = plugin_schema
-                    .as_ref()
-                    .and_then(|s| s.properties.values().next())
-                    .map(|p| p.description.clone())
-                    .unwrap_or_else(|| format!("{} 插件配置", prefix));
+                let description = format!("{} 插件配置", prefix);
 
                 CompletionItem {
                     label: prefix.clone(),
@@ -289,69 +264,13 @@ impl CompletionEngine {
     /// 补全配置项
     ///
     /// 在配置节内提供配置项补全，自动去重已存在的配置项
+    /// TODO: 实现基于 JSON Schema 的配置项补全
     fn complete_config_properties(
         &self,
-        section: &crate::toml_analyzer::ConfigSection,
+        _section: &crate::toml_analyzer::ConfigSection,
     ) -> Vec<CompletionItem> {
-        let plugin_schema = match self
-            .toml_analyzer
-            .schema_provider()
-            .get_plugin_schema(&section.prefix)
-        {
-            Some(schema) => schema,
-            None => return Vec::new(),
-        };
-
-        let mut completions = Vec::new();
-
-        for (key, property_schema) in &plugin_schema.properties {
-            // 去重：如果配置项已存在，不提供补全
-            if section.properties.contains_key(key.as_str()) {
-                continue;
-            }
-
-            let type_hint = self.type_info_to_hint(&property_schema.type_info);
-            let default_value = property_schema
-                .default
-                .as_ref()
-                .map(|v| self.value_to_string(v))
-                .unwrap_or_else(|| self.type_info_to_default(&property_schema.type_info));
-
-            let insert_text = format!("{} = {}  # {}", key, default_value, type_hint);
-
-            completions.push(CompletionItem {
-                label: key.clone(),
-                kind: Some(CompletionItemKind::PROPERTY),
-                detail: Some(format!("{} ({})", property_schema.description, type_hint)),
-                documentation: Some(Documentation::MarkupContent(MarkupContent {
-                    kind: MarkupKind::Markdown,
-                    value: format!(
-                        "**{}**\n\n{}\n\n\
-                         **类型**: {}\n\
-                         **默认值**: {}\n\
-                         {}",
-                        key,
-                        property_schema.description,
-                        type_hint,
-                        property_schema
-                            .default
-                            .as_ref()
-                            .map(|v| self.value_to_string(v))
-                            .unwrap_or_else(|| "无".to_string()),
-                        if property_schema.required {
-                            "**必需**: 是"
-                        } else {
-                            ""
-                        }
-                    ),
-                })),
-                insert_text: Some(insert_text),
-                insert_text_format: Some(lsp_types::InsertTextFormat::PLAIN_TEXT),
-                ..Default::default()
-            });
-        }
-
-        completions
+        // 暂时返回空列表，等待实现基于 JSON Schema 的补全
+        Vec::new()
     }
 
     /// 补全枚举值

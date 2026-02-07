@@ -1,15 +1,33 @@
 //! 配置 Schema 管理模块
 
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::HashMap;
 
 /// 配置 Schema
 ///
 /// 包含所有插件的配置定义
+///
+/// 这个结构体用于解析 spring-rs 生成的 JSON Schema，格式为：
+/// ```json
+/// {
+///   "type": "object",
+///   "properties": {
+///     "web": { ... },
+///     "redis": { ... }
+///   }
+/// }
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigSchema {
-    /// 插件配置映射,键为配置前缀
-    pub plugins: HashMap<String, PluginSchema>,
+    /// Schema 类型（通常是 "object"）
+    #[serde(rename = "type")]
+    pub schema_type: String,
+
+    /// 插件配置映射，键为配置前缀
+    /// 在 JSON Schema 中对应 "properties" 字段
+    #[serde(rename = "properties")]
+    pub plugins: HashMap<String, serde_json::Value>,
 }
 
 /// 插件 Schema
@@ -116,13 +134,11 @@ pub enum Value {
 
 /// Schema 提供者
 ///
-/// 管理配置 Schema，提供配置项元数据查询和缓存
+/// 管理配置 Schema，提供配置项元数据查询
 #[derive(Clone)]
 pub struct SchemaProvider {
     /// Schema 数据（加载后不会改变，直接拥有即可）
     schema: ConfigSchema,
-    /// 查询缓存（使用 DashMap 提供并发安全的缓存）
-    cache: dashmap::DashMap<String, PluginSchema>,
 }
 
 impl SchemaProvider {
@@ -133,9 +149,9 @@ impl SchemaProvider {
     pub fn new() -> Self {
         Self {
             schema: ConfigSchema {
+                schema_type: "object".to_string(),
                 plugins: HashMap::new(),
             },
-            cache: dashmap::DashMap::new(),
         }
     }
 
@@ -147,10 +163,7 @@ impl SchemaProvider {
         match Self::load_from_url(Self::SCHEMA_URL).await {
             Ok(schema) => {
                 tracing::info!("Successfully loaded schema from {}", Self::SCHEMA_URL);
-                Ok(Self {
-                    schema,
-                    cache: dashmap::DashMap::new(),
-                })
+                Ok(Self { schema })
             }
             Err(e) => {
                 tracing::warn!("Failed to load schema from URL: {}, using fallback", e);
@@ -172,7 +185,6 @@ impl SchemaProvider {
         let fallback_schema = Self::create_fallback_schema();
         Self {
             schema: fallback_schema,
-            cache: dashmap::DashMap::new(),
         }
     }
 
@@ -183,102 +195,49 @@ impl SchemaProvider {
         let mut plugins = HashMap::new();
 
         // Web 插件配置
-        let mut web_properties = HashMap::new();
-        web_properties.insert(
-            "host".to_string(),
-            PropertySchema {
-                name: "host".to_string(),
-                type_info: TypeInfo::String {
-                    enum_values: None,
-                    min_length: None,
-                    max_length: None,
+        let web_schema = json!({
+            "type": "object",
+            "properties": {
+                "host": {
+                    "type": "string",
+                    "description": "Web server host address",
+                    "default": "0.0.0.0"
                 },
-                description: "Web server host address".to_string(),
-                default: Some(Value::String("0.0.0.0".to_string())),
-                required: false,
-                deprecated: None,
-                example: Some("host = \"0.0.0.0\"".to_string()),
-            },
-        );
-        web_properties.insert(
-            "port".to_string(),
-            PropertySchema {
-                name: "port".to_string(),
-                type_info: TypeInfo::Integer {
-                    min: Some(1),
-                    max: Some(65535),
-                },
-                description: "Web server port".to_string(),
-                default: Some(Value::Integer(8080)),
-                required: false,
-                deprecated: None,
-                example: Some("port = 8080".to_string()),
-            },
-        );
-
-        plugins.insert(
-            "web".to_string(),
-            PluginSchema {
-                prefix: "web".to_string(),
-                properties: web_properties,
-            },
-        );
+                "port": {
+                    "type": "integer",
+                    "description": "Web server port",
+                    "default": 8080,
+                    "minimum": 1,
+                    "maximum": 65535
+                }
+            }
+        });
+        plugins.insert("web".to_string(), web_schema);
 
         // Redis 插件配置
-        let mut redis_properties = HashMap::new();
-        redis_properties.insert(
-            "url".to_string(),
-            PropertySchema {
-                name: "url".to_string(),
-                type_info: TypeInfo::String {
-                    enum_values: None,
-                    min_length: None,
-                    max_length: None,
-                },
-                description: "Redis connection URL".to_string(),
-                default: Some(Value::String("redis://localhost:6379".to_string())),
-                required: false,
-                deprecated: None,
-                example: Some("url = \"redis://localhost:6379\"".to_string()),
-            },
-        );
+        let redis_schema = json!({
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "Redis connection URL",
+                    "default": "redis://localhost:6379"
+                }
+            }
+        });
+        plugins.insert("redis".to_string(), redis_schema);
 
-        plugins.insert(
-            "redis".to_string(),
-            PluginSchema {
-                prefix: "redis".to_string(),
-                properties: redis_properties,
-            },
-        );
-
-        ConfigSchema { plugins }
+        ConfigSchema {
+            schema_type: "object".to_string(),
+            plugins,
+        }
     }
 
     /// 获取插件 Schema
     ///
-    /// 使用缓存提高性能，返回克隆以避免锁竞争
-    pub fn get_plugin_schema(&self, prefix: &str) -> Option<PluginSchema> {
-        // 先查缓存（DashMap 并发安全）
-        if let Some(cached) = self.cache.get(prefix) {
-            return Some(cached.clone());
-        }
-
-        // 缓存未命中，从 schema 中查找并缓存
-        if let Some(schema) = self.schema.plugins.get(prefix) {
-            let cloned = schema.clone();
-            self.cache.insert(prefix.to_string(), cloned.clone());
-            Some(cloned)
-        } else {
-            None
-        }
-    }
-
-    /// 获取属性 Schema
-    ///
-    /// 查询指定插件的指定属性
-    pub fn get_property_schema(&self, prefix: &str, property: &str) -> Option<PropertySchema> {
-        let plugin_schema = self.get_plugin_schema(prefix)?;
-        plugin_schema.properties.get(property).cloned()
+    /// 检查指定的配置前缀是否在 Schema 中定义
+    pub fn has_plugin(&self, prefix: &str) -> bool {
+        self.schema.plugins.contains_key(prefix)
     }
 
     /// 获取所有配置前缀
@@ -286,6 +245,21 @@ impl SchemaProvider {
     /// 返回所有已注册插件的配置前缀列表
     pub fn get_all_prefixes(&self) -> Vec<String> {
         self.schema.plugins.keys().cloned().collect()
+    }
+
+    /// 检查配置属性是否存在
+    ///
+    /// 查询指定插件的指定属性是否在 Schema 中定义
+    pub fn has_property(&self, prefix: &str, property: &str) -> bool {
+        if let Some(plugin_schema) = self.schema.plugins.get(prefix) {
+            // 尝试解析为 JSON Schema 对象
+            if let Some(properties) = plugin_schema.get("properties") {
+                if let Some(props_obj) = properties.as_object() {
+                    return props_obj.contains_key(property);
+                }
+            }
+        }
+        false
     }
 }
 
@@ -300,9 +274,6 @@ impl SchemaProvider {
     ///
     /// 这个方法主要用于属性测试，允许使用自定义的 Schema 创建提供者
     pub fn from_schema(schema: ConfigSchema) -> Self {
-        Self {
-            schema,
-            cache: dashmap::DashMap::new(),
-        }
+        Self { schema }
     }
 }

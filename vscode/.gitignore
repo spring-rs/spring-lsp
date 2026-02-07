@@ -2,3 +2,13 @@ node_modules/
 out/
 *.vsix
 .vscode-test/
+*.log
+.DS_Store
+package-lock.json
+
+# 防止编译输出混入源代码目录
+src/**/*.js
+src/**/*.js.map
+test/**/*.js
+test/**/*.js.map
+!test/runTest.js

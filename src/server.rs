@@ -59,10 +59,11 @@ use lsp_types::{
     notification::{
         DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, Exit, Notification as _,
     },
-    request::{Completion, GotoDefinition, HoverRequest, Request as _},
+    request::{Completion, DocumentSymbolRequest, GotoDefinition, HoverRequest, Request as _},
     CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
-    InitializeParams, InitializeResult, ServerCapabilities, ServerInfo,
+    DidOpenTextDocumentParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
+    GotoDefinitionResponse, HoverParams, InitializeParams, InitializeResult, ServerCapabilities,
+    ServerInfo,
 };
 use std::sync::Arc;
 
@@ -146,8 +147,24 @@ impl LspServer {
         // 初始化所有组件
         tracing::info!("Initializing components...");
 
-        // 1. Schema 提供者（使用 fallback schema 初始化，避免测试时的异步加载问题）
-        let schema_provider = Arc::new(SchemaProvider::default());
+        // 1. Schema 提供者（同步加载完整 Schema）
+        tracing::info!("Loading configuration schema...");
+        let schema_provider = Arc::new({
+            // 使用 tokio 运行时同步加载 Schema
+            let runtime = tokio::runtime::Runtime::new()
+                .map_err(|e| Error::SchemaLoad(format!("Failed to create tokio runtime: {}", e)))?;
+
+            match runtime.block_on(SchemaProvider::load()) {
+                Ok(provider) => {
+                    tracing::info!("Schema loaded successfully from URL");
+                    provider
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to load schema from URL: {}, using fallback", e);
+                    SchemaProvider::default()
+                }
+            }
+        });
 
         // 2. TOML 分析器
         let toml_analyzer = Arc::new(TomlAnalyzer::new((*schema_provider).clone()));
@@ -332,8 +349,20 @@ impl LspServer {
             HoverRequest::METHOD => self.handle_hover(req),
             // 定义跳转请求
             GotoDefinition::METHOD => self.handle_goto_definition(req),
+            // 文档符号请求
+            DocumentSymbolRequest::METHOD => self.handle_document_symbol(req),
             // 状态查询请求
             "spring-lsp/status" => self.handle_status_query(req),
+            // 自定义请求：获取组件列表
+            "spring/components" => self.handle_components_request(req),
+            // 自定义请求：获取路由列表
+            "spring/routes" => self.handle_routes_request(req),
+            // 自定义请求：获取任务列表
+            "spring/jobs" => self.handle_jobs_request(req),
+            // 自定义请求：获取插件列表
+            "spring/plugins" => self.handle_plugins_request(req),
+            // 自定义请求：获取配置列表
+            "spring/configurations" => self.handle_configurations_request(req),
             _ => {
                 tracing::warn!("Unhandled request method: {}", req.method);
                 // 返回方法未实现错误
@@ -576,8 +605,9 @@ impl LspServer {
 
                                 diagnostics
                             }
-                            Err(_e) => {
-                                // 解析错误
+                            Err(e) => {
+                                // 解析错误 - 显示详细错误信息
+                                tracing::error!("TOML parse error: {}", e);
                                 vec![lsp_types::Diagnostic {
                                     range: lsp_types::Range {
                                         start: lsp_types::Position {
@@ -595,7 +625,7 @@ impl LspServer {
                                     )),
                                     code_description: None,
                                     source: Some("spring-lsp".to_string()),
-                                    message: "TOML parse error".to_string(),
+                                    message: format!("TOML parse error: {}", e),
                                     related_information: None,
                                     tags: None,
                                     data: None,
@@ -661,6 +691,553 @@ impl LspServer {
             .map_err(|e| Error::MessageSend(e.to_string()))?;
 
         Ok(())
+    }
+
+    /// 处理 spring/routes 请求
+    ///
+    /// 扫描项目中的所有路由并返回路由列表
+    fn handle_routes_request(&self, req: Request) -> Result<()> {
+        tracing::info!("Handling spring/routes request");
+
+        use crate::route_scanner::{RouteScanner, RoutesRequest, RoutesResponse};
+
+        // 解析请求参数
+        let params: RoutesRequest = serde_json::from_value(req.params)?;
+        let project_path = std::path::Path::new(&params.app_path);
+
+        tracing::info!("Scanning routes in: {:?}", project_path);
+
+        // 创建路由扫描器
+        let scanner = RouteScanner::new();
+
+        // 扫描路由
+        let routes = match scanner.scan_routes(project_path) {
+            Ok(routes) => {
+                tracing::info!("Successfully scanned {} routes", routes.len());
+                routes
+            }
+            Err(e) => {
+                tracing::error!("Failed to scan routes: {}", e);
+                // 返回空列表而不是错误
+                Vec::new()
+            }
+        };
+
+        // 构建响应
+        let response_data = RoutesResponse { routes };
+
+        tracing::info!(
+            "Sending response with {} routes",
+            response_data.routes.len()
+        );
+
+        let result = serde_json::to_value(response_data)?;
+
+        let response = Response {
+            id: req.id,
+            result: Some(result),
+            error: None,
+        };
+
+        self.connection
+            .sender
+            .send(Message::Response(response))
+            .map_err(|e| Error::MessageSend(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// 处理 spring/components 请求
+    ///
+    /// 扫描项目中的所有组件并返回组件列表
+    fn handle_components_request(&self, req: Request) -> Result<()> {
+        tracing::info!("Handling spring/components request");
+
+        use crate::component_scanner::{ComponentScanner, ComponentsRequest, ComponentsResponse};
+
+        // 解析请求参数
+        let params: ComponentsRequest = serde_json::from_value(req.params)?;
+        let project_path = std::path::Path::new(&params.app_path);
+
+        tracing::info!("Scanning components in: {:?}", project_path);
+        tracing::info!("Project path exists: {}", project_path.exists());
+        tracing::info!("Project path is dir: {}", project_path.is_dir());
+
+        // 创建组件扫描器
+        let scanner = ComponentScanner::new();
+
+        // 扫描组件
+        let components = match scanner.scan_components(project_path) {
+            Ok(components) => {
+                tracing::info!("Successfully scanned {} components", components.len());
+                components
+            }
+            Err(e) => {
+                tracing::error!("Failed to scan components: {}", e);
+                tracing::error!("Error details: {:?}", e);
+                // 返回空列表而不是错误
+                Vec::new()
+            }
+        };
+
+        // 构建响应
+        let response_data = ComponentsResponse { components };
+
+        tracing::info!(
+            "Sending response with {} components",
+            response_data.components.len()
+        );
+
+        let result = serde_json::to_value(response_data)?;
+
+        let response = Response {
+            id: req.id,
+            result: Some(result),
+            error: None,
+        };
+
+        self.connection
+            .sender
+            .send(Message::Response(response))
+            .map_err(|e| Error::MessageSend(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// 处理 spring/jobs 请求
+    ///
+    /// 扫描项目中的所有定时任务并返回任务列表
+    fn handle_jobs_request(&self, req: Request) -> Result<()> {
+        tracing::info!("Handling spring/jobs request");
+
+        use crate::job_scanner::{JobScanner, JobsRequest, JobsResponse};
+
+        // 解析请求参数
+        let params: JobsRequest = serde_json::from_value(req.params)?;
+        let project_path = std::path::Path::new(&params.app_path);
+
+        tracing::info!("Scanning jobs in: {:?}", project_path);
+
+        // 创建任务扫描器
+        let scanner = JobScanner::new();
+
+        // 扫描任务
+        let jobs = match scanner.scan_jobs(project_path) {
+            Ok(jobs) => {
+                tracing::info!("Successfully scanned {} jobs", jobs.len());
+                jobs
+            }
+            Err(e) => {
+                tracing::error!("Failed to scan jobs: {}", e);
+                // 返回空列表而不是错误
+                Vec::new()
+            }
+        };
+
+        // 构建响应
+        let response_data = JobsResponse { jobs };
+
+        tracing::info!("Sending response with {} jobs", response_data.jobs.len());
+
+        let result = serde_json::to_value(response_data)?;
+
+        let response = Response {
+            id: req.id,
+            result: Some(result),
+            error: None,
+        };
+
+        self.connection
+            .sender
+            .send(Message::Response(response))
+            .map_err(|e| Error::MessageSend(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// 处理 spring/plugins 请求
+    ///
+    /// 扫描项目中的所有插件并返回插件列表
+    fn handle_plugins_request(&self, req: Request) -> Result<()> {
+        tracing::info!("Handling spring/plugins request");
+
+        use crate::plugin_scanner::{PluginScanner, PluginsRequest, PluginsResponse};
+
+        // 解析请求参数
+        let params: PluginsRequest = serde_json::from_value(req.params)?;
+        let project_path = std::path::Path::new(&params.app_path);
+
+        tracing::info!("Scanning plugins in: {:?}", project_path);
+
+        // 创建插件扫描器
+        let scanner = PluginScanner::new();
+
+        // 扫描插件
+        let plugins = match scanner.scan_plugins(project_path) {
+            Ok(plugins) => {
+                tracing::info!("Successfully scanned {} plugins", plugins.len());
+                plugins
+            }
+            Err(e) => {
+                tracing::error!("Failed to scan plugins: {}", e);
+                // 返回空列表而不是错误
+                Vec::new()
+            }
+        };
+
+        // 构建响应
+        let response_data = PluginsResponse { plugins };
+
+        tracing::info!(
+            "Sending response with {} plugins",
+            response_data.plugins.len()
+        );
+
+        let result = serde_json::to_value(response_data)?;
+
+        let response = Response {
+            id: req.id,
+            result: Some(result),
+            error: None,
+        };
+
+        self.connection
+            .sender
+            .send(Message::Response(response))
+            .map_err(|e| Error::MessageSend(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// 处理 spring/configurations 请求
+    ///
+    /// 扫描项目中的所有配置结构并返回配置列表
+    fn handle_configurations_request(&self, req: Request) -> Result<()> {
+        tracing::debug!("Handling spring/configurations request");
+
+        use crate::config_scanner::{ConfigScanner, ConfigurationsRequest, ConfigurationsResponse};
+
+        // 解析请求参数
+        let params: ConfigurationsRequest = serde_json::from_value(req.params)?;
+        let project_path = std::path::Path::new(&params.app_path);
+
+        // 创建配置扫描器
+        let scanner = ConfigScanner::new();
+
+        // 扫描配置
+        let configurations = match scanner.scan_configurations(project_path) {
+            Ok(configurations) => configurations,
+            Err(e) => {
+                tracing::error!("Failed to scan configurations: {}", e);
+                // 返回空列表而不是错误
+                Vec::new()
+            }
+        };
+
+        // 构建响应
+        let response_data = ConfigurationsResponse { configurations };
+        let result = serde_json::to_value(response_data)?;
+
+        let response = Response {
+            id: req.id,
+            result: Some(result),
+            error: None,
+        };
+
+        self.connection
+            .sender
+            .send(Message::Response(response))
+            .map_err(|e| Error::MessageSend(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// 处理 textDocument/documentSymbol 请求
+    ///
+    /// 提取文档中的符号（配置节、属性、函数、结构体等）用于大纲视图
+    fn handle_document_symbol(&self, req: Request) -> Result<()> {
+        tracing::debug!("Handling textDocument/documentSymbol request");
+
+        let params: DocumentSymbolParams = serde_json::from_value(req.params)?;
+        let uri = &params.text_document.uri;
+
+        let symbols = self.document_manager.with_document(uri, |doc| {
+            match doc.language_id.as_str() {
+                "toml" => {
+                    // TOML 文档符号提取
+                    self.extract_toml_symbols(&doc.content)
+                }
+                "rust" => {
+                    // Rust 文档符号提取
+                    self.extract_rust_symbols(&doc.content)
+                }
+                _ => {
+                    tracing::debug!(
+                        "Unsupported language for document symbols: {}",
+                        doc.language_id
+                    );
+                    vec![]
+                }
+            }
+        });
+
+        let result = match symbols {
+            Some(symbols) => serde_json::to_value(DocumentSymbolResponse::Nested(symbols))?,
+            None => serde_json::Value::Null,
+        };
+
+        let response = Response {
+            id: req.id,
+            result: Some(result),
+            error: None,
+        };
+
+        self.connection
+            .sender
+            .send(Message::Response(response))
+            .map_err(|e| Error::MessageSend(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// 提取 TOML 文档符号
+    fn extract_toml_symbols(&self, content: &str) -> Vec<lsp_types::DocumentSymbol> {
+        use lsp_types::{DocumentSymbol, Position, Range, SymbolKind};
+
+        let mut symbols = Vec::new();
+
+        // 使用 taplo 解析 TOML
+        let parse_result = taplo::parser::parse(content);
+        let root = parse_result.into_dom();
+
+        // 检查根节点是否为表
+        if let taplo::dom::Node::Table(table) = root {
+            let entries = table.entries();
+            let entries_arc = entries.get();
+
+            // 遍历顶层表
+            for (key, value) in entries_arc.iter() {
+                let key_str = key.value().to_string();
+
+                // 获取键的位置信息（简化版，使用默认位置）
+                let key_range = Range {
+                    start: Position {
+                        line: 0,
+                        character: 0,
+                    },
+                    end: Position {
+                        line: 0,
+                        character: key_str.len() as u32,
+                    },
+                };
+
+                match value {
+                    taplo::dom::Node::Table(inner_table) => {
+                        // 配置节（表）
+                        let mut children = Vec::new();
+
+                        // 提取表中的属性
+                        let inner_entries = inner_table.entries();
+                        let inner_entries_arc = inner_entries.get();
+                        for (prop_key, _prop_value) in inner_entries_arc.iter() {
+                            let prop_key_str = prop_key.value().to_string();
+
+                            let prop_symbol = DocumentSymbol {
+                                name: prop_key_str.clone(),
+                                detail: Some("Property".to_string()),
+                                kind: SymbolKind::PROPERTY,
+                                tags: None,
+                                #[allow(deprecated)]
+                                deprecated: None,
+                                range: key_range,
+                                selection_range: key_range,
+                                children: None,
+                            };
+                            children.push(prop_symbol);
+                        }
+
+                        let symbol = DocumentSymbol {
+                            name: key_str.clone(),
+                            detail: Some("Configuration section".to_string()),
+                            kind: SymbolKind::MODULE,
+                            tags: None,
+                            #[allow(deprecated)]
+                            deprecated: None,
+                            range: key_range,
+                            selection_range: key_range,
+                            children: if children.is_empty() {
+                                None
+                            } else {
+                                Some(children)
+                            },
+                        };
+                        symbols.push(symbol);
+                    }
+                    taplo::dom::Node::Array(_) => {
+                        // 数组
+                        let symbol = DocumentSymbol {
+                            name: key_str.clone(),
+                            detail: Some("Array".to_string()),
+                            kind: SymbolKind::ARRAY,
+                            tags: None,
+                            #[allow(deprecated)]
+                            deprecated: None,
+                            range: key_range,
+                            selection_range: key_range,
+                            children: None,
+                        };
+                        symbols.push(symbol);
+                    }
+                    _ => {
+                        // 其他值类型（字符串、数字、布尔等）
+                        let symbol = DocumentSymbol {
+                            name: key_str.clone(),
+                            detail: Some("Property".to_string()),
+                            kind: SymbolKind::PROPERTY,
+                            tags: None,
+                            #[allow(deprecated)]
+                            deprecated: None,
+                            range: key_range,
+                            selection_range: key_range,
+                            children: None,
+                        };
+                        symbols.push(symbol);
+                    }
+                }
+            }
+        }
+
+        symbols
+    }
+
+    /// 提取 Rust 文档符号
+    fn extract_rust_symbols(&self, _content: &str) -> Vec<lsp_types::DocumentSymbol> {
+        use lsp_types::{DocumentSymbol, Range, SymbolKind};
+
+        let mut symbols = Vec::new();
+
+        // 使用 syn 解析 Rust 代码
+        let syntax = match syn::parse_file(_content) {
+            Ok(syntax) => syntax,
+            Err(e) => {
+                tracing::warn!("Failed to parse Rust file: {}", e);
+                return symbols;
+            }
+        };
+
+        // 默认范围（因为 proc_macro2::Span 不提供行列信息）
+        let default_range = Range::default();
+
+        // 遍历顶层项
+        for item in syntax.items {
+            match item {
+                syn::Item::Fn(item_fn) => {
+                    // 函数
+                    let name = item_fn.sig.ident.to_string();
+
+                    let symbol = DocumentSymbol {
+                        name: name.clone(),
+                        detail: Some(format!("fn {}", name)),
+                        kind: SymbolKind::FUNCTION,
+                        tags: None,
+                        #[allow(deprecated)]
+                        deprecated: None,
+                        range: default_range,
+                        selection_range: default_range,
+                        children: None,
+                    };
+                    symbols.push(symbol);
+                }
+                syn::Item::Struct(item_struct) => {
+                    // 结构体
+                    let name = item_struct.ident.to_string();
+
+                    let symbol = DocumentSymbol {
+                        name: name.clone(),
+                        detail: Some(format!("struct {}", name)),
+                        kind: SymbolKind::STRUCT,
+                        tags: None,
+                        #[allow(deprecated)]
+                        deprecated: None,
+                        range: default_range,
+                        selection_range: default_range,
+                        children: None,
+                    };
+                    symbols.push(symbol);
+                }
+                syn::Item::Enum(item_enum) => {
+                    // 枚举
+                    let name = item_enum.ident.to_string();
+
+                    let symbol = DocumentSymbol {
+                        name: name.clone(),
+                        detail: Some(format!("enum {}", name)),
+                        kind: SymbolKind::ENUM,
+                        tags: None,
+                        #[allow(deprecated)]
+                        deprecated: None,
+                        range: default_range,
+                        selection_range: default_range,
+                        children: None,
+                    };
+                    symbols.push(symbol);
+                }
+                syn::Item::Trait(item_trait) => {
+                    // Trait
+                    let name = item_trait.ident.to_string();
+
+                    let symbol = DocumentSymbol {
+                        name: name.clone(),
+                        detail: Some(format!("trait {}", name)),
+                        kind: SymbolKind::INTERFACE,
+                        tags: None,
+                        #[allow(deprecated)]
+                        deprecated: None,
+                        range: default_range,
+                        selection_range: default_range,
+                        children: None,
+                    };
+                    symbols.push(symbol);
+                }
+                syn::Item::Impl(item_impl) => {
+                    // Impl 块
+                    if let Some((_, path, _)) = &item_impl.trait_ {
+                        let name = quote::quote!(#path).to_string();
+                        let symbol = DocumentSymbol {
+                            name: format!("impl {}", name),
+                            detail: Some("Implementation".to_string()),
+                            kind: SymbolKind::CLASS,
+                            tags: None,
+                            #[allow(deprecated)]
+                            deprecated: None,
+                            range: default_range,
+                            selection_range: default_range,
+                            children: None,
+                        };
+                        symbols.push(symbol);
+                    } else if let syn::Type::Path(type_path) = &*item_impl.self_ty {
+                        let name = quote::quote!(#type_path).to_string();
+                        let symbol = DocumentSymbol {
+                            name: format!("impl {}", name),
+                            detail: Some("Implementation".to_string()),
+                            kind: SymbolKind::CLASS,
+                            tags: None,
+                            #[allow(deprecated)]
+                            deprecated: None,
+                            range: default_range,
+                            selection_range: default_range,
+                            children: None,
+                        };
+                        symbols.push(symbol);
+                    }
+                }
+                _ => {
+                    // 其他项暂不处理
+                }
+            }
+        }
+
+        symbols
     }
 
     /// 处理初始化请求

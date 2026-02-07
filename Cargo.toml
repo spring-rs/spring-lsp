@@ -20,6 +20,7 @@ taplo = "0.13"
 
 # Rust 语法解析
 syn = { version = "2.0", features = ["full", "extra-traits"] }
+proc-macro2 = { version = "1.0", features = ["span-locations"] }
 quote = "1.0"
 
 # 异步运行时
@@ -52,6 +53,9 @@ reqwest = { version = "0.11", default-features = false, features = ["json", "rus
 
 # 正则表达式
 regex = "1.10"
+
+# 目录遍历
+walkdir = "2.4"
 
 # 终端检测（用于日志颜色）
 atty = "0.2"
