@@ -141,10 +141,11 @@ jobs:
             npm install
           fi
       
-      - name: Compile TypeScript
+      - name: Compile TypeScript with webpack
         run: |
           cd vscode
-          npm run compile
+          echo "🔨 Compiling with webpack (production mode)..."
+          npm run vscode:prepublish
       
       - name: Run verification
         run: |
@@ -154,7 +155,10 @@ jobs:
       - name: Package extension
         run: |
           cd vscode
-          npm run package:quick
+          echo "📦 Packaging extension..."
+          npx @vscode/vsce package --no-dependencies
+          echo "✅ Extension packaged successfully"
+          ls -lh *.vsix
       
       - name: Get version
         id: version

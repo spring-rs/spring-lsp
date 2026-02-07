@@ -2,12 +2,24 @@
 .vscode-test/**
 src/**
 test/**
+out/**
 .gitignore
 .eslintrc.json
 .prettierrc.json
 **/*.map
 **/*.ts
 tsconfig.json
-node_modules/**
-out/test/**
 *.vsix
+webpack.config.js
+.eslintignore
+.prettierignore
+scripts/**
+docs/**
+.DS_Store
+*.log
+.mise.toml
+mise.toml
+
+# 不要排除 node_modules，因为某些依赖可能需要在运行时加载
+# 但如果使用 webpack 打包，可以排除
+# node_modules/**

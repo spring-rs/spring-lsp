@@ -86,3 +86,47 @@ jobs:
         with:
           files: ./cobertura.xml
           fail_ci_if_error: false
+
+  vscode-extension:
+    name: VSCode Extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      
+      - name: Install dependencies
+        run: |
+          cd vscode
+          npm ci || npm install
+      
+      - name: Lint TypeScript
+        run: |
+          cd vscode
+          npm run lint || echo "⚠️ Linting warnings (non-fatal)"
+      
+      - name: Compile TypeScript
+        run: |
+          cd vscode
+          npm run compile
+      
+      - name: Verify build output
+        run: |
+          cd vscode
+          if [ ! -f dist/extension.js ]; then
+            echo "❌ Build failed: dist/extension.js not found"
+            exit 1
+          fi
+          echo "✅ Build successful"
+          ls -lh dist/
