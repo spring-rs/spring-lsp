@@ -22,10 +22,10 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact: spring-lsp-linux-x64
-          - os: macos-13  # Intel
+          - os: macos-12
             target: x86_64-apple-darwin
             artifact: spring-lsp-darwin-x64
-          - os: macos-14  # Apple Silicon
+          - os: macos-14
             target: aarch64-apple-darwin
             artifact: spring-lsp-darwin-arm64
           - os: windows-latest
