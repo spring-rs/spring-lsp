@@ -139,7 +139,7 @@ pub struct IndexManager {
     /// 符号索引（使用 RwLock 因为重建时需要整体替换）
     symbol_index: Arc<RwLock<SymbolIndex>>,
     /// 路由索引
-    route_index: Arc<RwLock<crate::route::RouteIndex>>,
+    route_index: Arc<RwLock<crate::scanner::route::RouteIndex>>,
     /// 组件索引
     component_index: Arc<RwLock<ComponentIndex>>,
 }
@@ -149,7 +149,7 @@ impl IndexManager {
     pub fn new() -> Self {
         Self {
             symbol_index: Arc::new(RwLock::new(SymbolIndex::new())),
-            route_index: Arc::new(RwLock::new(crate::route::RouteIndex::new())),
+            route_index: Arc::new(RwLock::new(crate::scanner::route::RouteIndex::new())),
             component_index: Arc::new(RwLock::new(ComponentIndex::new())),
         }
     }
@@ -222,12 +222,12 @@ impl IndexManager {
     }
 
     /// 获取所有路由
-    pub fn get_all_routes(&self) -> Vec<crate::route::RouteInfo> {
+    pub fn get_all_routes(&self) -> Vec<crate::scanner::route::Route> {
         let index = self
             .route_index
             .read()
             .expect("Failed to acquire read lock on route index");
-        index.routes.clone()
+        index.all_routes().into_iter().cloned().collect()
     }
 
     /// 构建符号索引（内部方法）
@@ -243,12 +243,12 @@ impl IndexManager {
     async fn build_route_index(
         _root_uri: &Url,
         _documents: &[(Url, String)],
-    ) -> crate::route::RouteIndex {
+    ) -> crate::scanner::route::RouteIndex {
         // TODO: 实现路由索引构建
         // 1. 遍历所有 Rust 文件
         // 2. 识别路由宏
         // 3. 构建路由索引
-        crate::route::RouteIndex::new()
+        crate::scanner::route::RouteIndex::new()
     }
 
     /// 构建组件索引（内部方法）

@@ -2,7 +2,8 @@
 //!
 //! 扫描项目中的所有路由定义
 
-use crate::macro_analyzer::{MacroAnalyzer, SpringMacro};
+use crate::analysis::rust::macro_analyzer::{MacroAnalyzer, SpringMacro};
+use crate::protocol::types::{LocationResponse, PositionResponse, RangeResponse};
 use lsp_types::Url;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -140,33 +141,6 @@ pub struct RouteInfoResponse {
     pub location: LocationResponse,
 }
 
-/// 位置信息响应
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LocationResponse {
-    /// 文件 URI
-    pub uri: String,
-    /// 范围
-    pub range: RangeResponse,
-}
-
-/// 范围响应
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RangeResponse {
-    /// 起始位置
-    pub start: PositionResponse,
-    /// 结束位置
-    pub end: PositionResponse,
-}
-
-/// 位置响应
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PositionResponse {
-    /// 行号（从 0 开始）
-    pub line: u32,
-    /// 列号（从 0 开始）
-    pub character: u32,
-}
-
 /// spring/routes 请求参数
 #[derive(Debug, Deserialize)]
 pub struct RoutesRequest {
@@ -212,4 +186,117 @@ mod tests {
         // 验证默认扫描器创建成功
         assert!(true);
     }
+}
+
+// ============================================================================
+// 路由类型定义和导航器
+// ============================================================================
+
+use lsp_types::Location;
+use std::collections::HashMap;
+
+/// 路由导航器
+///
+/// 提供路由相关的导航功能，如跳转到处理器定义
+pub struct RouteNavigator {
+    // TODO: 添加字段
+}
+
+impl RouteNavigator {
+    /// 创建新的路由导航器
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    /// 查找路由处理器的定义位置
+    pub fn find_handler_location(&self, _route_path: &str) -> Option<Location> {
+        // TODO: 实现查找逻辑
+        None
+    }
+}
+
+impl Default for RouteNavigator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// 路由索引
+///
+/// 维护项目中所有路由的索引
+pub struct RouteIndex {
+    /// 路由映射：路径 -> 路由信息
+    routes: HashMap<String, Route>,
+}
+
+impl RouteIndex {
+    /// 创建新的路由索引
+    pub fn new() -> Self {
+        Self {
+            routes: HashMap::new(),
+        }
+    }
+
+    /// 添加路由
+    pub fn add_route(&mut self, route: Route) {
+        let key = format!("{} {}", route.method.as_str(), route.path);
+        self.routes.insert(key, route);
+    }
+
+    /// 查找路由
+    pub fn find_route(&self, method: HttpMethod, path: &str) -> Option<&Route> {
+        let key = format!("{} {}", method.as_str(), path);
+        self.routes.get(&key)
+    }
+
+    /// 获取所有路由
+    pub fn all_routes(&self) -> Vec<&Route> {
+        self.routes.values().collect()
+    }
+}
+
+impl Default for RouteIndex {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// HTTP 方法
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HttpMethod {
+    GET,
+    POST,
+    PUT,
+    DELETE,
+    PATCH,
+    HEAD,
+    OPTIONS,
+}
+
+impl HttpMethod {
+    /// 转换为字符串
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            HttpMethod::GET => "GET",
+            HttpMethod::POST => "POST",
+            HttpMethod::PUT => "PUT",
+            HttpMethod::DELETE => "DELETE",
+            HttpMethod::PATCH => "PATCH",
+            HttpMethod::HEAD => "HEAD",
+            HttpMethod::OPTIONS => "OPTIONS",
+        }
+    }
+}
+
+/// 路由信息
+#[derive(Debug, Clone)]
+pub struct Route {
+    /// HTTP 方法
+    pub method: HttpMethod,
+    /// 路径模式
+    pub path: String,
+    /// 处理器函数名
+    pub handler: String,
+    /// 源代码位置
+    pub location: Location,
 }

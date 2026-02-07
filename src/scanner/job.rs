@@ -2,7 +2,8 @@
 //!
 //! 扫描项目中的所有定时任务定义（带有 #[cron], #[fix_delay], #[fix_rate] 的函数）
 
-use crate::macro_analyzer::{JobMacro, MacroAnalyzer, SpringMacro};
+use crate::analysis::rust::macro_analyzer::{JobMacro, MacroAnalyzer, SpringMacro};
+use crate::protocol::types::{LocationResponse, PositionResponse, RangeResponse};
 use lsp_types::Url;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -159,33 +160,6 @@ pub struct JobInfoResponse {
     pub schedule: String,
     /// 源代码位置
     pub location: LocationResponse,
-}
-
-/// 位置信息响应
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LocationResponse {
-    /// 文件 URI
-    pub uri: String,
-    /// 范围
-    pub range: RangeResponse,
-}
-
-/// 范围响应
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RangeResponse {
-    /// 起始位置
-    pub start: PositionResponse,
-    /// 结束位置
-    pub end: PositionResponse,
-}
-
-/// 位置响应
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PositionResponse {
-    /// 行号（从 0 开始）
-    pub line: u32,
-    /// 列号（从 0 开始）
-    pub character: u32,
 }
 
 /// spring/jobs 请求参数

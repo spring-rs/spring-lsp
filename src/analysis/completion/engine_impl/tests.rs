@@ -573,10 +573,10 @@ fn test_complete_config_properties_in_section() {
     let toml_content = "[web]\nhost = \"localhost\"";
     let doc = toml_analyzer.parse(toml_content).unwrap();
 
-    // 光标在 web 节内（使用 line 0，因为 taplo 的 range 都在 line 0）
+    // 光标在 web 节内的第二行（host 属性所在行）
     let position = Position {
-        line: 0,
-        character: 20, // 在 web 节的范围内（0-24）
+        line: 1,
+        character: 5, // 在 host 属性之后
     };
 
     let completions = engine.complete(CompletionContext::Toml, position, Some(&doc), None);
@@ -610,10 +610,10 @@ fn test_complete_config_properties_deduplication() {
     let toml_content = "[web]\nhost = \"localhost\"\nport = 8080";
     let doc = toml_analyzer.parse(toml_content).unwrap();
 
-    // 光标在 web 节内（使用 line 0）
+    // 光标在 web 节内的第二行
     let position = Position {
-        line: 0,
-        character: 20,
+        line: 1,
+        character: 5,
     };
 
     let completions = engine.complete(CompletionContext::Toml, position, Some(&doc), None);
@@ -1087,23 +1087,14 @@ mod property_tests {
             let used_keys: Vec<String> = all_keys.iter().take(used_keys_count).cloned().collect();
 
             // 创建 Schema，包含所有配置项
-            let mut properties = HashMap::new();
+            let mut properties_json = serde_json::Map::new();
             for key in &all_keys {
-                properties.insert(
+                properties_json.insert(
                     key.clone(),
-                    crate::schema::PropertySchema {
-                        name: key.clone(),
-                        type_info: crate::schema::TypeInfo::String {
-                            enum_values: None,
-                            min_length: None,
-                            max_length: None,
-                        },
-                        description: format!("Property {}", key),
-                        default: None,
-                        required: false,
-                        deprecated: None,
-                        example: None,
-                    },
+                    serde_json::json!({
+                        "type": "string",
+                        "description": format!("Property {}", key)
+                    }),
                 );
             }
 
@@ -1115,7 +1106,7 @@ mod property_tests {
                     prefix.clone(),
                     serde_json::json!({
                         "type": "object",
-                        "properties": {}
+                        "properties": properties_json
                     }),
                 );
 
@@ -1271,23 +1262,14 @@ mod property_tests {
                 .collect();
 
             // 创建 Schema
-            let mut properties = HashMap::new();
+            let mut properties_json = serde_json::Map::new();
             for key in &all_keys {
-                properties.insert(
+                properties_json.insert(
                     key.clone(),
-                    crate::schema::PropertySchema {
-                        name: key.clone(),
-                        type_info: crate::schema::TypeInfo::String {
-                            enum_values: None,
-                            min_length: None,
-                            max_length: None,
-                        },
-                        description: format!("Property {}", key),
-                        default: None,
-                        required: false,
-                        deprecated: None,
-                        example: None,
-                    },
+                    serde_json::json!({
+                        "type": "string",
+                        "description": format!("Property {}", key)
+                    }),
                 );
             }
 
@@ -1299,7 +1281,7 @@ mod property_tests {
                     prefix.clone(),
                     serde_json::json!({
                         "type": "object",
-                        "properties": {}
+                        "properties": properties_json
                     }),
                 );
 
@@ -1358,23 +1340,14 @@ mod property_tests {
             let keys: Vec<String> = keys.into_iter().collect();
 
             // 创建 Schema
-            let mut properties = HashMap::new();
+            let mut properties_json = serde_json::Map::new();
             for key in &keys {
-                properties.insert(
+                properties_json.insert(
                     key.clone(),
-                    crate::schema::PropertySchema {
-                        name: key.clone(),
-                        type_info: crate::schema::TypeInfo::String {
-                            enum_values: None,
-                            min_length: None,
-                            max_length: None,
-                        },
-                        description: format!("Property {}", key),
-                        default: None,
-                        required: false,
-                        deprecated: None,
-                        example: None,
-                    },
+                    serde_json::json!({
+                        "type": "string",
+                        "description": format!("Property {}", key)
+                    }),
                 );
             }
 
@@ -1386,7 +1359,7 @@ mod property_tests {
                     prefix.clone(),
                     serde_json::json!({
                         "type": "object",
-                        "properties": {}
+                        "properties": properties_json
                     }),
                 );
 

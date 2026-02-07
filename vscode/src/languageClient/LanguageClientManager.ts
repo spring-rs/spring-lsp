@@ -20,7 +20,7 @@ export class LanguageClientManager implements vscode.Disposable {
   private client: LanguageClient | undefined;
 
   /**
-   * 输出通道
+   * 输出通道（用于扩展日志）
    */
   private outputChannel: vscode.OutputChannel;
 
@@ -33,10 +33,11 @@ export class LanguageClientManager implements vscode.Disposable {
    * 创建 LanguageClientManager 实例
    * 
    * @param context 扩展上下文
+   * @param outputChannel 输出通道（用于扩展日志）
    */
-  constructor(context: vscode.ExtensionContext) {
+  constructor(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel) {
     this.context = context;
-    this.outputChannel = vscode.window.createOutputChannel('Spring LSP');
+    this.outputChannel = outputChannel;
   }
 
   /**
@@ -73,7 +74,8 @@ export class LanguageClientManager implements vscode.Disposable {
             '**/{*.toml,*.rs,Cargo.toml}'
           ),
         },
-        outputChannel: this.outputChannel,
+        // 不指定 outputChannel，让 LSP 客户端自动创建
+        // 这样会创建一个名为 "Spring RS" 的输出通道用于语言服务器日志
       };
 
       // 创建语言客户端

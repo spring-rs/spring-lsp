@@ -42,17 +42,17 @@
 //!
 //! 本实现遵循 LSP 3.17 规范。
 
-use crate::completion::CompletionEngine;
-use crate::config::ServerConfig;
-use crate::diagnostic::DiagnosticEngine;
-use crate::document::DocumentManager;
-use crate::error::{ErrorHandler, RecoveryAction};
-use crate::index::IndexManager;
-use crate::macro_analyzer::MacroAnalyzer;
-use crate::route::RouteNavigator;
-use crate::schema::SchemaProvider;
-use crate::status::ServerStatus;
-use crate::toml_analyzer::TomlAnalyzer;
+use crate::analysis::completion::CompletionEngine;
+use crate::analysis::diagnostic::DiagnosticEngine;
+use crate::analysis::rust::macro_analyzer::MacroAnalyzer;
+use crate::analysis::toml::toml_analyzer::TomlAnalyzer;
+use crate::core::config::ServerConfig;
+use crate::core::document::DocumentManager;
+use crate::core::index::IndexManager;
+use crate::core::schema::SchemaProvider;
+use crate::scanner::route::RouteNavigator;
+use crate::utils::error::{ErrorHandler, RecoveryAction};
+use crate::utils::status::ServerStatus;
 use crate::{Error, Result};
 use lsp_server::{Connection, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
@@ -699,7 +699,7 @@ impl LspServer {
     fn handle_routes_request(&self, req: Request) -> Result<()> {
         tracing::info!("Handling spring/routes request");
 
-        use crate::route_scanner::{RouteScanner, RoutesRequest, RoutesResponse};
+        use crate::scanner::route::{RouteScanner, RoutesRequest, RoutesResponse};
 
         // 解析请求参数
         let params: RoutesRequest = serde_json::from_value(req.params)?;
@@ -753,7 +753,7 @@ impl LspServer {
     fn handle_components_request(&self, req: Request) -> Result<()> {
         tracing::info!("Handling spring/components request");
 
-        use crate::component_scanner::{ComponentScanner, ComponentsRequest, ComponentsResponse};
+        use crate::scanner::component::{ComponentScanner, ComponentsRequest, ComponentsResponse};
 
         // 解析请求参数
         let params: ComponentsRequest = serde_json::from_value(req.params)?;
@@ -810,7 +810,7 @@ impl LspServer {
     fn handle_jobs_request(&self, req: Request) -> Result<()> {
         tracing::info!("Handling spring/jobs request");
 
-        use crate::job_scanner::{JobScanner, JobsRequest, JobsResponse};
+        use crate::scanner::job::{JobScanner, JobsRequest, JobsResponse};
 
         // 解析请求参数
         let params: JobsRequest = serde_json::from_value(req.params)?;
@@ -861,7 +861,7 @@ impl LspServer {
     fn handle_plugins_request(&self, req: Request) -> Result<()> {
         tracing::info!("Handling spring/plugins request");
 
-        use crate::plugin_scanner::{PluginScanner, PluginsRequest, PluginsResponse};
+        use crate::scanner::plugin::{PluginScanner, PluginsRequest, PluginsResponse};
 
         // 解析请求参数
         let params: PluginsRequest = serde_json::from_value(req.params)?;
@@ -915,7 +915,7 @@ impl LspServer {
     fn handle_configurations_request(&self, req: Request) -> Result<()> {
         tracing::debug!("Handling spring/configurations request");
 
-        use crate::config_scanner::{ConfigScanner, ConfigurationsRequest, ConfigurationsResponse};
+        use crate::scanner::config::{ConfigScanner, ConfigurationsRequest, ConfigurationsResponse};
 
         // 解析请求参数
         let params: ConfigurationsRequest = serde_json::from_value(req.params)?;

@@ -1,6 +1,6 @@
 use anyhow::Result;
-use spring_lsp::logging::init_logging;
-use spring_lsp::server::LspServer;
+use spring_lsp::protocol::LspServer;
+use spring_lsp::utils::init_logging;
 
 fn main() -> Result<()> {
     // 初始化日志系统

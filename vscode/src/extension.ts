@@ -23,14 +23,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   console.log('Spring LSP extension is now activating...');
 
   try {
-    // 1. 创建输出通道
+    // 1. 创建输出通道（用于扩展自身的日志）
     const outputChannel = vscode.window.createOutputChannel('Spring LSP');
     context.subscriptions.push(outputChannel);
     outputChannel.appendLine('Spring LSP extension starting...');
 
-    // 2. 创建语言客户端管理器
+    // 2. 创建语言客户端管理器（会创建单独的语言服务器输出通道）
     outputChannel.appendLine('Initializing language client...');
-    const languageClient = new LanguageClientManager(context);
+    const languageClient = new LanguageClientManager(context, outputChannel);
 
     // 3. 创建应用管理器
     outputChannel.appendLine('Initializing app manager...');

@@ -324,6 +324,21 @@ Contributions are welcome! Please see [CONTRIBUTING.md](https://github.com/sprin
 
 5. Make changes and reload the window (Ctrl+R / Cmd+R)
 
+### Debugging the Extension
+
+For detailed debugging instructions, see [DEBUG_EXTENSION.md](DEBUG_EXTENSION.md).
+
+**Quick Start:**
+1. Start watch mode: `npm run watch`
+2. Press F5 to start debugging
+3. Set breakpoints in TypeScript files
+4. Test in the Extension Development Host window
+
+**Available Debug Configurations:**
+- **Run Extension** - Debug basic functionality
+- **Run Extension (with test project)** - Debug with a specific project
+- **Extension Tests** - Debug automated tests
+
 ## Resources
 
 - [spring-rs Documentation](https://spring-rs.github.io/)

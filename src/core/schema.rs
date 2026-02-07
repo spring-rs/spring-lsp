@@ -246,6 +246,13 @@ impl SchemaProvider {
     pub fn get_all_prefixes(&self) -> Vec<String> {
         self.schema.plugins.keys().cloned().collect()
     }
+    
+    /// 获取插件的 Schema
+    ///
+    /// 返回指定插件的 JSON Schema
+    pub fn get_plugin_schema(&self, prefix: &str) -> Option<&serde_json::Value> {
+        self.schema.plugins.get(prefix)
+    }
 
     /// 检查配置属性是否存在
     ///
