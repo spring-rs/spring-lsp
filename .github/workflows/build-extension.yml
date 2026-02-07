@@ -23,12 +23,16 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact: spring-lsp-linux-x64
-          - os: macos-13  # 使用 macos-13 替代 macos-12
+          # macOS Intel (x86_64) - 在 ARM64 Mac 上交叉编译
+          - os: macos-14
             target: x86_64-apple-darwin
             artifact: spring-lsp-darwin-x64
+            cross_compile: true
+          # macOS Apple Silicon (ARM64)
           - os: macos-14
             target: aarch64-apple-darwin
             artifact: spring-lsp-darwin-arm64
+            cross_compile: false
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: spring-lsp-win32-x64.exe
@@ -44,6 +48,13 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      
+      # macOS 交叉编译需要额外的工具
+      - name: Install cross-compilation tools (macOS x86_64)
+        if: matrix.cross_compile == true
+        run: |
+          echo "Setting up cross-compilation for x86_64 on ARM64 Mac"
+          # Rust 已经支持交叉编译，只需要添加 target
       
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
