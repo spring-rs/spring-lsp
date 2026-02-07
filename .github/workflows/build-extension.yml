@@ -129,7 +129,13 @@ jobs:
       - name: Install dependencies
         run: |
           cd vscode
-          npm ci
+          if [ -f package-lock.json ]; then
+            echo "📦 Using npm ci (with package-lock.json)"
+            npm ci
+          else
+            echo "⚠️ package-lock.json not found, using npm install"
+            npm install
+          fi
       
       - name: Compile TypeScript
         run: |

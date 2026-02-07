@@ -4,7 +4,6 @@ out/
 .vscode-test/
 *.log
 .DS_Store
-package-lock.json
 
 # 防止编译输出混入源代码目录
 src/**/*.js
