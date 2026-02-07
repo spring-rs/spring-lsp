@@ -246,7 +246,7 @@ impl SchemaProvider {
     pub fn get_all_prefixes(&self) -> Vec<String> {
         self.schema.plugins.keys().cloned().collect()
     }
-    
+
     /// 获取插件的 Schema
     ///
     /// 返回指定插件的 JSON Schema

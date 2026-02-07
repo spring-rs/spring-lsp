@@ -189,7 +189,7 @@ export class LanguageClientManager implements vscode.Disposable {
    * 
    * 按以下顺序查找：
    * 1. 配置中指定的路径
-   * 2. 扩展目录的 bin/ 子目录
+   * 2. 扩展目录的 bin/ 子目录（根据平台选择）
    * 3. 系统 PATH
    * 
    * @returns 服务器可执行文件路径，如果未找到返回 undefined
@@ -209,23 +209,51 @@ export class LanguageClientManager implements vscode.Disposable {
       }
     }
 
-    // 2. 检查扩展目录中的二进制文件
+    // 2. 检查扩展目录中的二进制文件（根据平台选择）
     const extensionPath = this.context.extensionPath;
-    const platform = process.platform;
-    const binaryName = platform === 'win32' ? 'spring-lsp.exe' : 'spring-lsp';
+    const binaryName = this.getPlatformBinaryName();
     const binaryPath = path.join(extensionPath, 'bin', binaryName);
 
     if (fs.existsSync(binaryPath)) {
+      // 确保有执行权限（Unix 系统）
+      if (process.platform !== 'win32') {
+        try {
+          fs.chmodSync(binaryPath, 0o755);
+        } catch (error) {
+          this.outputChannel.appendLine(`Failed to set execute permission: ${error}`);
+        }
+      }
       return binaryPath;
     }
 
-    // 3. 检查系统 PATH
-    const pathResult = await this.findInPath(binaryName);
+    // 3. 检查系统 PATH（使用通用名称 spring-lsp）
+    const pathResult = await this.findInPath('spring-lsp');
     if (pathResult) {
       return pathResult;
     }
 
     return undefined;
+  }
+
+  /**
+   * 获取当前平台的二进制文件名
+   * 
+   * @returns 平台特定的二进制文件名
+   */
+  private getPlatformBinaryName(): string {
+    const platform = process.platform;
+    const arch = process.arch;
+
+    if (platform === 'win32') {
+      return 'spring-lsp-win32-x64.exe';
+    } else if (platform === 'darwin') {
+      return arch === 'arm64' 
+        ? 'spring-lsp-darwin-arm64' 
+        : 'spring-lsp-darwin-x64';
+    } else {
+      // Linux 和其他 Unix 系统
+      return 'spring-lsp-linux-x64';
+    }
   }
 
   /**

@@ -7,9 +7,9 @@
 //! - 循环依赖检测
 //! - 配置注入验证
 
-use crate::core::index::IndexManager;
 use crate::analysis::rust::macro_analyzer::{InjectMacro, InjectType, RustDocument, SpringMacro};
 use crate::analysis::toml::toml_analyzer::TomlDocument;
+use crate::core::index::IndexManager;
 use lsp_types::{Diagnostic, DiagnosticSeverity, Location, NumberOrString};
 use std::collections::{HashMap, HashSet};
 

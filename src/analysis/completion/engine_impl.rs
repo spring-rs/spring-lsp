@@ -5,8 +5,8 @@ use lsp_types::{
 };
 
 use crate::analysis::rust::macro_analyzer::SpringMacro;
-use crate::core::schema::SchemaProvider;
 use crate::analysis::toml::toml_analyzer::{TomlAnalyzer, TomlDocument};
+use crate::core::schema::SchemaProvider;
 
 /// 补全上下文
 ///
@@ -272,81 +272,81 @@ impl CompletionEngine {
         section: &crate::toml_analyzer::ConfigSection,
     ) -> Vec<CompletionItem> {
         let prefix = &section.prefix;
-        
+
         // 从 Schema 中获取该插件的所有属性
         let schema_provider = self.toml_analyzer.schema_provider();
-        
+
         // 检查插件是否存在
         if !schema_provider.has_plugin(prefix) {
             return Vec::new();
         }
-        
+
         // 获取插件的 Schema
         let plugin_schema = match schema_provider.get_plugin_schema(prefix) {
             Some(schema) => schema,
             None => return Vec::new(),
         };
-        
+
         // 解析 properties
         let properties = match plugin_schema.get("properties") {
             Some(props) => props,
             None => return Vec::new(),
         };
-        
+
         let props_obj = match properties.as_object() {
             Some(obj) => obj,
             None => return Vec::new(),
         };
-        
+
         // 获取已存在的属性名（用于去重）
-        let existing_keys: std::collections::HashSet<String> = section
-            .properties
-            .keys()
-            .cloned()
-            .collect();
-        
+        let existing_keys: std::collections::HashSet<String> =
+            section.properties.keys().cloned().collect();
+
         // 为每个未使用的属性创建补全项
         let mut completions = Vec::new();
-        
+
         for (key, value) in props_obj {
             // 跳过已存在的属性
             if existing_keys.contains(key) {
                 continue;
             }
-            
+
             // 提取属性信息
             let description = value
                 .get("description")
                 .and_then(|d| d.as_str())
                 .unwrap_or("");
-            
+
             let type_name = value
                 .get("type")
                 .and_then(|t| t.as_str())
                 .unwrap_or("unknown");
-            
+
             let default_value = value
                 .get("default")
                 .map(|d| self.json_value_to_toml_string(d))
                 .unwrap_or_else(|| self.type_to_default_value(type_name));
-            
+
             // 构建插入文本：key = value  # type
             let insert_text = format!("{} = {}  # {}", key, default_value, type_name);
-            
+
             // 构建文档
             let mut doc_parts = vec![format!("**类型**: `{}`", type_name)];
             if !description.is_empty() {
                 doc_parts.insert(0, description.to_string());
             }
             if let Some(default) = value.get("default") {
-                doc_parts.push(format!("**默认值**: `{}`", self.json_value_to_toml_string(default)));
+                doc_parts.push(format!(
+                    "**默认值**: `{}`",
+                    self.json_value_to_toml_string(default)
+                ));
             }
-            
+
             let documentation = Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
                 value: doc_parts.join("\n\n"),
             });
-            
+
             completions.push(CompletionItem {
                 label: key.clone(),
                 kind: Some(CompletionItemKind::PROPERTY),
@@ -357,10 +357,10 @@ impl CompletionEngine {
                 ..Default::default()
             });
         }
-        
+
         completions
     }
-    
+
     /// 将 JSON 值转换为 TOML 字符串
     fn json_value_to_toml_string(&self, value: &serde_json::Value) -> String {
         match value {
@@ -372,7 +372,7 @@ impl CompletionEngine {
             serde_json::Value::Null => "null".to_string(),
         }
     }
-    
+
     /// 根据类型名称返回默认值
     fn type_to_default_value(&self, type_name: &str) -> String {
         match type_name {

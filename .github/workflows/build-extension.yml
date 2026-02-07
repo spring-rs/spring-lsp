@@ -1,0 +1,191 @@
+name: Build VSCode Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create GitHub Release'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  # 第一步：在各平台上构建语言服务器
+  build-server:
+    name: Build Server (${{ matrix.target }})
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: spring-lsp-linux-x64
+          - os: macos-13  # Intel
+            target: x86_64-apple-darwin
+            artifact: spring-lsp-darwin-x64
+          - os: macos-14  # Apple Silicon
+            target: aarch64-apple-darwin
+            artifact: spring-lsp-darwin-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: spring-lsp-win32-x64.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Build language server
+        run: cargo build --release --target ${{ matrix.target }}
+      
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          mkdir -p artifact
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            cp target/${{ matrix.target }}/release/spring-lsp.exe artifact/${{ matrix.artifact }}
+          else
+            cp target/${{ matrix.target }}/release/spring-lsp artifact/${{ matrix.artifact }}
+            chmod +x artifact/${{ matrix.artifact }}
+          fi
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: artifact/${{ matrix.artifact }}
+          retention-days: 1
+
+  # 第二步：打包 VSCode 扩展
+  package-extension:
+    name: Package Extension
+    needs: build-server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: vscode/package-lock.json
+      
+      - name: Download all server binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: vscode/bin-temp
+      
+      - name: Organize binaries
+        run: |
+          mkdir -p vscode/bin
+          cd vscode/bin-temp
+          # 将所有二进制文件移到 bin/ 目录
+          find . -type f -exec mv {} ../bin/ \;
+          cd ..
+          rm -rf bin-temp
+          # 设置执行权限
+          chmod +x bin/spring-lsp-* || true
+          # 显示文件列表
+          echo "📦 Server binaries:"
+          ls -lh bin/
+      
+      - name: Install dependencies
+        run: |
+          cd vscode
+          npm ci
+      
+      - name: Compile TypeScript
+        run: |
+          cd vscode
+          npm run compile
+      
+      - name: Run verification
+        run: |
+          cd vscode
+          npm run verify || echo "⚠️ Verification warnings (non-fatal)"
+      
+      - name: Package extension
+        run: |
+          cd vscode
+          npm run package:quick
+      
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./vscode/package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Extension version: $VERSION"
+      
+      - name: Upload VSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-extension
+          path: vscode/*.vsix
+          retention-days: 30
+      
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.create_release == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: vscode/*.vsix
+          draft: true
+          generate_release_notes: true
+          name: Release ${{ steps.version.outputs.version }}
+          body: |
+            ## Spring LSP VSCode Extension v${{ steps.version.outputs.version }}
+            
+            ### Installation
+            
+            Download the `.vsix` file and install:
+            ```bash
+            code --install-extension spring-rs-${{ steps.version.outputs.version }}.vsix
+            ```
+            
+            Or install from VSCode Marketplace (coming soon).
+            
+            ### What's Included
+            
+            - ✅ Language server binaries for all platforms (Linux, macOS Intel/ARM, Windows)
+            - ✅ Application management and debugging
+            - ✅ TOML configuration support
+            - ✅ Real-time application insights
+            
+            ### Supported Platforms
+            
+            - Linux x64
+            - macOS x64 (Intel)
+            - macOS ARM64 (Apple Silicon)
+            - Windows x64
+            
+            See [CHANGELOG.md](https://github.com/spring-rs/spring-lsp/blob/main/vscode/CHANGELOG.md) for details.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

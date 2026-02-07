@@ -915,7 +915,9 @@ impl LspServer {
     fn handle_configurations_request(&self, req: Request) -> Result<()> {
         tracing::debug!("Handling spring/configurations request");
 
-        use crate::scanner::config::{ConfigScanner, ConfigurationsRequest, ConfigurationsResponse};
+        use crate::scanner::config::{
+            ConfigScanner, ConfigurationsRequest, ConfigurationsResponse,
+        };
 
         // 解析请求参数
         let params: ConfigurationsRequest = serde_json::from_value(req.params)?;

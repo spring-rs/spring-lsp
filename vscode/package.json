@@ -439,7 +439,10 @@
     "clean": "bash scripts/clean.sh",
     "rebuild": "npm run clean && npm run compile",
     "verify": "node scripts/verify.js",
-    "package": "vsce package"
+    "build:server": "bash scripts/build-server.sh",
+    "build:server:current": "bash scripts/build-server-current.sh",
+    "package": "bash scripts/package-extension.sh",
+    "package:quick": "vsce package"
   },
   "devDependencies": {
     "@types/node": "^18.0.0",
