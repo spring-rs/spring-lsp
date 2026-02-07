@@ -104,6 +104,7 @@ fn test_route_macro_creation() {
         methods: vec![HttpMethod::Get],
         middlewares: vec!["AuthMiddleware".to_string()],
         handler_name: "get_user".to_string(),
+        is_openapi: false,
         range: test_range(),
     };
 
@@ -189,6 +190,7 @@ fn test_spring_macro_variants() {
         middlewares: vec![],
         handler_name: "test_handler".to_string(),
         range: test_range(),
+        is_openapi: false,
     });
 
     let auto_config = SpringMacro::AutoConfig(AutoConfigMacro {
@@ -263,6 +265,7 @@ fn test_route_macro_multiple_methods() {
         middlewares: vec![],
         handler_name: "handle_resource".to_string(),
         range: test_range(),
+        is_openapi: false,
     };
 
     assert_eq!(route.methods.len(), 3);
@@ -283,6 +286,7 @@ fn test_route_macro_multiple_middlewares() {
         ],
         handler_name: "protected_handler".to_string(),
         range: test_range(),
+        is_openapi: false,
     };
 
     assert_eq!(route.middlewares.len(), 3);
@@ -947,6 +951,7 @@ fn test_expand_route_macro_get() {
         methods: vec![HttpMethod::Get],
         middlewares: vec![],
         handler_name: "get_user".to_string(),
+        is_openapi: false,
         range: test_range(),
     };
 
@@ -969,6 +974,7 @@ fn test_expand_route_macro_multiple_methods() {
         middlewares: vec![],
         handler_name: "handle_resource".to_string(),
         range: test_range(),
+        is_openapi: false,
     };
 
     let analyzer = MacroAnalyzer::new();
@@ -987,6 +993,7 @@ fn test_expand_route_macro_with_middlewares() {
         middlewares: vec!["AuthMiddleware".to_string(), "LogMiddleware".to_string()],
         handler_name: "protected_handler".to_string(),
         range: test_range(),
+        is_openapi: false,
     };
 
     let analyzer = MacroAnalyzer::new();
@@ -1113,6 +1120,7 @@ fn test_expand_all_macro_types() {
             middlewares: vec![],
             handler_name: "test_handler".to_string(),
             range: test_range(),
+            is_openapi: false,
         }),
         SpringMacro::Job(JobMacro::Cron {
             expression: "0 0 * * * *".to_string(),
@@ -1529,6 +1537,7 @@ fn test_hover_route_macro() {
         methods: vec![HttpMethod::Get],
         middlewares: vec![],
         handler_name: "get_user".to_string(),
+        is_openapi: false,
         range: test_range(),
     };
 
@@ -1553,6 +1562,7 @@ fn test_hover_route_macro_multiple_methods() {
         middlewares: vec![],
         handler_name: "handle_resource".to_string(),
         range: test_range(),
+        is_openapi: false,
     };
 
     let hover = analyzer.hover_macro(&SpringMacro::Route(route));
@@ -1571,6 +1581,7 @@ fn test_hover_route_macro_with_middlewares() {
         middlewares: vec!["AuthMiddleware".to_string(), "LogMiddleware".to_string()],
         handler_name: "protected_handler".to_string(),
         range: test_range(),
+        is_openapi: false,
     };
 
     let hover = analyzer.hover_macro(&SpringMacro::Route(route));
@@ -1659,6 +1670,7 @@ fn test_hover_all_macro_types() {
             middlewares: vec![],
             handler_name: "test_handler".to_string(),
             range: test_range(),
+            is_openapi: false,
         }),
         SpringMacro::Job(JobMacro::Cron {
             expression: "0 0 * * * *".to_string(),
@@ -1994,6 +2006,7 @@ fn test_validate_route_macro_empty_path() {
         middlewares: vec![],
         handler_name: "handler".to_string(),
         range: test_range(),
+        is_openapi: false,
     };
 
     let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
@@ -2014,6 +2027,7 @@ fn test_validate_route_macro_path_without_slash() {
         middlewares: vec![],
         handler_name: "handler".to_string(),
         range: test_range(),
+        is_openapi: false,
     };
 
     let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
@@ -2034,6 +2048,7 @@ fn test_validate_route_macro_no_methods() {
         middlewares: vec![],
         handler_name: "handler".to_string(),
         range: test_range(),
+        is_openapi: false,
     };
 
     let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
@@ -2053,6 +2068,7 @@ fn test_validate_route_macro_empty_handler_name() {
         methods: vec![HttpMethod::Get],
         middlewares: vec![],
         handler_name: "".to_string(), // 空处理器名称
+        is_openapi: false,
         range: test_range(),
     };
 
@@ -2073,6 +2089,7 @@ fn test_validate_route_macro_valid() {
         methods: vec![HttpMethod::Get],
         middlewares: vec![],
         handler_name: "get_user".to_string(),
+        is_openapi: false,
         range: test_range(),
     };
 
@@ -2090,6 +2107,7 @@ fn test_validate_route_macro_nested_braces() {
         methods: vec![HttpMethod::Get],
         middlewares: vec![],
         handler_name: "handler".to_string(),
+        is_openapi: false,
         range: test_range(),
     };
 
@@ -2108,6 +2126,7 @@ fn test_validate_route_macro_unmatched_closing_brace() {
         methods: vec![HttpMethod::Get],
         middlewares: vec![],
         handler_name: "handler".to_string(),
+        is_openapi: false,
         range: test_range(),
     };
 
@@ -2127,6 +2146,7 @@ fn test_validate_route_macro_unclosed_brace() {
         middlewares: vec![],
         handler_name: "handler".to_string(),
         range: test_range(),
+        is_openapi: false,
     };
 
     let diagnostics = analyzer.validate_macro(&SpringMacro::Route(route));
@@ -2144,6 +2164,7 @@ fn test_validate_route_macro_empty_param_name() {
         methods: vec![HttpMethod::Get],
         middlewares: vec![],
         handler_name: "handler".to_string(),
+        is_openapi: false,
         range: test_range(),
     };
 
@@ -2164,6 +2185,7 @@ fn test_validate_route_macro_invalid_param_name() {
         methods: vec![HttpMethod::Get],
         middlewares: vec![],
         handler_name: "handler".to_string(),
+        is_openapi: false,
         range: test_range(),
     };
 
@@ -2184,6 +2206,7 @@ fn test_validate_route_macro_valid_param_names() {
         methods: vec![HttpMethod::Get],
         middlewares: vec![],
         handler_name: "handler".to_string(),
+        is_openapi: false,
         range: test_range(),
     };
 
@@ -2333,6 +2356,7 @@ fn test_validate_all_macro_types() {
             middlewares: vec![],
             handler_name: "test_handler".to_string(),
             range: test_range(),
+            is_openapi: false,
         }),
         SpringMacro::Job(JobMacro::Cron {
             expression: "0 0 * * * *".to_string(),
@@ -2403,6 +2427,7 @@ fn test_validate_multiple_errors() {
         methods: vec![],           // 没有方法
         middlewares: vec![],
         handler_name: "".to_string(), // 空处理器名称
+        is_openapi: false,
         range: test_range(),
     };
 
@@ -2448,6 +2473,7 @@ fn test_validate_error_codes() {
         middlewares: vec![],
         handler_name: "handler".to_string(),
         range: test_range(),
+        is_openapi: false,
     };
 
     let route2 = RouteMacro {
@@ -2456,6 +2482,7 @@ fn test_validate_error_codes() {
         middlewares: vec![],
         handler_name: "handler".to_string(),
         range: test_range(),
+        is_openapi: false,
     };
 
     let diagnostics1 = analyzer.validate_macro(&SpringMacro::Route(route1));

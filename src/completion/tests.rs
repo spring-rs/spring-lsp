@@ -154,6 +154,7 @@ fn test_complete_route_macro() {
         middlewares: vec![],
         handler_name: "test_handler".to_string(),
         range: test_range(),
+        is_openapi: false,
     };
 
     let completions = engine.complete_macro(&SpringMacro::Route(route_macro), None);
@@ -299,6 +300,7 @@ fn test_completion_items_have_documentation() {
             middlewares: vec![],
             handler_name: "handler".to_string(),
             range: test_range(),
+            is_openapi: false,
         }),
         SpringMacro::Job(JobMacro::Cron {
             expression: "".to_string(),
@@ -1033,16 +1035,17 @@ mod property_tests {
         ) {
             // 创建一个包含多个插件的 Schema
             let mut schema = crate::schema::ConfigSchema {
+                schema_type: "object".to_string(),
                 plugins: HashMap::new(),
             };
 
             for prefix in &prefixes {
                 schema.plugins.insert(
                     prefix.clone(),
-                    crate::schema::PluginSchema {
-                        prefix: prefix.clone(),
-                        properties: HashMap::new(),
-                    },
+                    serde_json::json!({
+                        "type": "object",
+                        "properties": {}
+                    }),
                 );
             }
 
@@ -1105,15 +1108,16 @@ mod property_tests {
             }
 
             let mut schema = crate::schema::ConfigSchema {
+                schema_type: "object".to_string(),
                 plugins: HashMap::new(),
             };
             schema.plugins.insert(
-                prefix.clone(),
-                crate::schema::PluginSchema {
-                    prefix: prefix.clone(),
-                    properties,
-                },
-            );
+                    prefix.clone(),
+                    serde_json::json!({
+                        "type": "object",
+                        "properties": {}
+                    }),
+                );
 
             let schema_provider = crate::schema::SchemaProvider::from_schema(schema);
             let engine = CompletionEngine::new(schema_provider);
@@ -1288,15 +1292,16 @@ mod property_tests {
             }
 
             let mut schema = crate::schema::ConfigSchema {
+                schema_type: "object".to_string(),
                 plugins: HashMap::new(),
             };
             schema.plugins.insert(
-                prefix.clone(),
-                crate::schema::PluginSchema {
-                    prefix: prefix.clone(),
-                    properties,
-                },
-            );
+                    prefix.clone(),
+                    serde_json::json!({
+                        "type": "object",
+                        "properties": {}
+                    }),
+                );
 
             let schema_provider = crate::schema::SchemaProvider::from_schema(schema);
             let engine = CompletionEngine::new(schema_provider);
@@ -1374,15 +1379,16 @@ mod property_tests {
             }
 
             let mut schema = crate::schema::ConfigSchema {
+                schema_type: "object".to_string(),
                 plugins: HashMap::new(),
             };
             schema.plugins.insert(
-                prefix.clone(),
-                crate::schema::PluginSchema {
-                    prefix: prefix.clone(),
-                    properties,
-                },
-            );
+                    prefix.clone(),
+                    serde_json::json!({
+                        "type": "object",
+                        "properties": {}
+                    }),
+                );
 
             let schema_provider = crate::schema::SchemaProvider::from_schema(schema);
             let engine = CompletionEngine::new(schema_provider);
@@ -1705,6 +1711,7 @@ fn test_route_macro_path_parameter_snippet() {
         middlewares: vec![],
         handler_name: "handler".to_string(),
         range: test_range(),
+        is_openapi: false,
     };
 
     let completions = engine.complete_macro(&SpringMacro::Route(route_macro), None);

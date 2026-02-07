@@ -1008,6 +1008,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1051,6 +1052,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1088,6 +1090,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user_post".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1132,6 +1135,7 @@ mod tests {
             methods: vec![HttpMethod::Get, HttpMethod::Post],
             middlewares: vec![],
             handler_name: "handle_users".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1174,6 +1178,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1191,6 +1196,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 20,
@@ -1208,6 +1214,7 @@ mod tests {
             methods: vec![HttpMethod::Get, HttpMethod::Post],
             middlewares: vec![],
             handler_name: "handle_posts".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 30,
@@ -1251,6 +1258,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1274,6 +1282,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_posts".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1310,6 +1319,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1337,6 +1347,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_posts".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1430,6 +1441,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1447,6 +1459,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_posts".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 20,
@@ -1501,6 +1514,7 @@ mod tests {
                     methods: vec![HttpMethod::Get],
                     middlewares: vec![],
                     handler_name: handler.to_string(),
+                    is_openapi: false,
                     range: Range {
                         start: Position {
                             line: 0,
@@ -1558,6 +1572,7 @@ mod tests {
                     methods: vec![HttpMethod::Get],
                     middlewares: vec![],
                     handler_name: handler.to_string(),
+                    is_openapi: false,
                     range: Range {
                         start: Position {
                             line: 0,
@@ -1604,6 +1619,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 0,
@@ -1640,6 +1656,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 0,
@@ -1686,6 +1703,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1724,6 +1742,7 @@ mod tests {
             methods: vec![HttpMethod::Get, HttpMethod::Post],
             middlewares: vec![],
             handler_name: "handle_users".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1764,6 +1783,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1799,6 +1819,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 42,
@@ -1855,6 +1876,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user_posts".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1899,6 +1921,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1943,6 +1966,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user_post".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -1985,6 +2009,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -2029,6 +2054,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -2073,6 +2099,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -2117,6 +2144,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -2161,6 +2189,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user_posts".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -2203,6 +2232,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_users".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -2247,6 +2277,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_user_profiles".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -2298,6 +2329,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -2315,6 +2347,7 @@ mod tests {
             methods: vec![HttpMethod::Post],
             middlewares: vec![],
             handler_name: "create_user".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 20,
@@ -2351,6 +2384,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "list_users".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -2368,6 +2402,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "get_users".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 20,
@@ -2407,6 +2442,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "handler1".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 10,
@@ -2424,6 +2460,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "handler2".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 20,
@@ -2441,6 +2478,7 @@ mod tests {
             methods: vec![HttpMethod::Get],
             middlewares: vec![],
             handler_name: "handler3".to_string(),
+            is_openapi: false,
             range: Range {
                 start: Position {
                     line: 30,
