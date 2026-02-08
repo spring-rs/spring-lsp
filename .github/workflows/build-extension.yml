@@ -11,6 +11,16 @@ on:
         required: false
         type: boolean
         default: false
+      publish_marketplace:
+        description: 'Publish to VSCode Marketplace'
+        required: false
+        type: boolean
+        default: false
+      publish_openvsx:
+        description: 'Publish to Open VSX Registry'
+        required: false
+        type: boolean
+        default: false
 
 # 授予 GITHUB_TOKEN 写权限以创建 releases
 permissions:
@@ -211,3 +221,21 @@ jobs:
             See [CHANGELOG.md](https://github.com/spring-rs/spring-lsp/blob/main/vscode/CHANGELOG.md) for details.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Publish to VSCode Marketplace
+        if: (startsWith(github.ref, 'refs/tags/') || github.event.inputs.publish_marketplace == 'true') && secrets.VSCE_PAT != ''
+        run: |
+          cd vscode
+          echo "🚀 Publishing to VSCode Marketplace..."
+          npx @vscode/vsce publish --packagePath *.vsix -p ${{ secrets.VSCE_PAT }}
+          echo "✅ Published to VSCode Marketplace successfully"
+        continue-on-error: false
+      
+      - name: Publish to Open VSX Registry
+        if: (startsWith(github.ref, 'refs/tags/') || github.event.inputs.publish_openvsx == 'true') && secrets.OVSX_PAT != ''
+        run: |
+          cd vscode
+          echo "🚀 Publishing to Open VSX Registry..."
+          npx ovsx publish *.vsix -p ${{ secrets.OVSX_PAT }}
+          echo "✅ Published to Open VSX Registry successfully"
+        continue-on-error: true
