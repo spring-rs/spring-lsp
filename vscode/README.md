@@ -1,8 +1,8 @@
 # Spring RS
 
-[![Version](https://img.shields.io/visual-studio-marketplace/v/spring-rs.spring-rs)](https://marketplace.visualstudio.com/items?itemName=spring-rs.spring-rs)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/spring-rs.spring-rs)](https://marketplace.visualstudio.com/items?itemName=spring-rs.spring-rs)
-[![Rating](https://img.shields.io/visual-studio-marketplace/r/spring-rs.spring-rs)](https://marketplace.visualstudio.com/items?itemName=spring-rs.spring-rs)
+[![Version](https://img.shields.io/visual-studio-marketplace/v/holmofy.spring-rs)](https://marketplace.visualstudio.com/items?itemName=spring-rs.spring-rs)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/holmofy.spring-rs)](https://marketplace.visualstudio.com/items?itemName=spring-rs.spring-rs)
+[![Rating](https://img.shields.io/visual-studio-marketplace/r/holmofy.spring-rs)](https://marketplace.visualstudio.com/items?itemName=spring-rs.spring-rs)
 
 Language Server Protocol support and application management for the [spring-rs](https://spring-rs.github.io/) framework.
 
