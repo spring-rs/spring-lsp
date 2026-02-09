@@ -223,19 +223,31 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Publish to VSCode Marketplace
-        if: (startsWith(github.ref, 'refs/tags/') || github.event.inputs.publish_marketplace == 'true') && secrets.VSCE_PAT != ''
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.publish_marketplace == 'true'
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
           cd vscode
+          if [ -z "$VSCE_PAT" ]; then
+            echo "⚠️ VSCE_PAT secret not set, skipping marketplace publish"
+            exit 0
+          fi
           echo "🚀 Publishing to VSCode Marketplace..."
-          npx @vscode/vsce publish --packagePath *.vsix -p ${{ secrets.VSCE_PAT }}
+          npx @vscode/vsce publish --packagePath *.vsix -p $VSCE_PAT
           echo "✅ Published to VSCode Marketplace successfully"
         continue-on-error: false
       
       - name: Publish to Open VSX Registry
-        if: (startsWith(github.ref, 'refs/tags/') || github.event.inputs.publish_openvsx == 'true') && secrets.OVSX_PAT != ''
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.publish_openvsx == 'true'
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
           cd vscode
+          if [ -z "$OVSX_PAT" ]; then
+            echo "⚠️ OVSX_PAT secret not set, skipping Open VSX publish"
+            exit 0
+          fi
           echo "🚀 Publishing to Open VSX Registry..."
-          npx ovsx publish *.vsix -p ${{ secrets.OVSX_PAT }}
+          npx ovsx publish *.vsix -p $OVSX_PAT
           echo "✅ Published to Open VSX Registry successfully"
         continue-on-error: true
