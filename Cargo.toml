@@ -1,6 +1,6 @@
 [package]
 name = "spring-lsp"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["spring-rs contributors"]
 license = "MIT OR Apache-2.0"
