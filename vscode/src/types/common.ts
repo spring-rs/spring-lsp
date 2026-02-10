@@ -60,6 +60,21 @@ export enum ComponentScope {
 }
 
 /**
+ * 组件定义方式
+ */
+export enum ComponentSource {
+  /**
+   * 使用 #[derive(Service)] 定义
+   */
+  Service = 'service',
+  
+  /**
+   * 使用 #[component] 定义
+   */
+  Component = 'component'
+}
+
+/**
  * 任务类型
  */
 export enum JobType {

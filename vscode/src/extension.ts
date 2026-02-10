@@ -6,12 +6,12 @@ import { CommandManager } from './commands';
 import { SpringApp } from './models/SpringApp';
 import {
   AppsTreeDataProvider,
-  ComponentsTreeDataProvider,
-  RoutesTreeDataProvider,
   JobsTreeDataProvider,
-  PluginsTreeDataProvider,
-  ConfigurationsTreeDataProvider
+  PluginsTreeDataProvider
 } from './views';
+import { ComponentsTreeDataProviderEnhanced } from './views/ComponentsTreeDataProviderEnhanced';
+import { RoutesTreeDataProviderEnhanced } from './views/RoutesTreeDataProviderEnhanced';
+import { ConfigurationsTreeDataProviderEnhanced } from './views/ConfigurationsTreeDataProviderEnhanced';
 import { GutterDecorationManager } from './gutter';
 
 /**
@@ -47,7 +47,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     // 5. 注册视图
     outputChannel.appendLine('Registering views...');
-    const { configurationsProvider, refreshInitialApp } = registerViews(context, appManager, languageClient);
+    const { configurationsProvider, componentsProvider, routesProvider, refreshInitialApp } = registerViews(context, appManager, languageClient);
 
     // 6. 注册命令
     outputChannel.appendLine('Registering commands...');
@@ -58,7 +58,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       languageClient
     );
     commandManager.registerCommands();
-    commandManager.setConfigurationsProvider(configurationsProvider);
+    
+    // 设置 provider 引用（必须在 registerCommands 之后）
+    setupCommandManagerProviders(
+      commandManager,
+      componentsProvider,
+      routesProvider,
+      configurationsProvider
+    );
+    
     context.subscriptions.push(commandManager);
 
     // 6.5. 初始化 Gutter 装饰管理器（可选功能）
@@ -141,7 +149,12 @@ function registerViews(
   context: vscode.ExtensionContext,
   appManager: LocalAppManager,
   languageClient: LanguageClientManager
-): { configurationsProvider: ConfigurationsTreeDataProvider; refreshInitialApp: () => void } {
+): { 
+  configurationsProvider: ConfigurationsTreeDataProviderEnhanced; 
+  componentsProvider: ComponentsTreeDataProviderEnhanced;
+  routesProvider: RoutesTreeDataProviderEnhanced;
+  refreshInitialApp: () => void;
+} {
   // 1. 注册 Apps 视图（带应用选择功能）
   const appsProvider = new AppsTreeDataProvider(appManager);
   const appsView = vscode.window.createTreeView('spring.apps', {
@@ -152,7 +165,7 @@ function registerViews(
   context.subscriptions.push(appsView);
 
   // 2. 注册 Components 视图
-  const componentsProvider = new ComponentsTreeDataProvider(languageClient, context);
+  const componentsProvider = new ComponentsTreeDataProviderEnhanced(languageClient, context);
   const componentsView = vscode.window.createTreeView('spring.components', {
     treeDataProvider: componentsProvider,
     showCollapseAll: true
@@ -160,7 +173,7 @@ function registerViews(
   context.subscriptions.push(componentsView);
 
   // 3. 注册 Routes 视图
-  const routesProvider = new RoutesTreeDataProvider(languageClient, context);
+  const routesProvider = new RoutesTreeDataProviderEnhanced(languageClient, context);
   const routesView = vscode.window.createTreeView('spring.routes', {
     treeDataProvider: routesProvider,
     showCollapseAll: true
@@ -184,7 +197,7 @@ function registerViews(
   context.subscriptions.push(pluginsView);
 
   // 6. 注册 Configurations 视图
-  const configurationsProvider = new ConfigurationsTreeDataProvider(languageClient, context);
+  const configurationsProvider = new ConfigurationsTreeDataProviderEnhanced(languageClient, context);
   const configurationsView = vscode.window.createTreeView('spring.configurations', {
     treeDataProvider: configurationsProvider,
     showCollapseAll: true
@@ -198,12 +211,14 @@ function registerViews(
     // 刷新所有视图
     componentsProvider.refresh(app);
     routesProvider.refresh(app);
+    configurationsProvider.refresh(app);
     jobsProvider.refresh(app);
     pluginsProvider.refresh(app);
     
     // 更新视图描述（显示当前应用名称）
     componentsView.description = app.name;
     routesView.description = app.name;
+    configurationsView.description = app.name;
     jobsView.description = app.name;
     pluginsView.description = app.name;
   });
@@ -226,6 +241,7 @@ function registerViews(
       console.log(`[After LSP ready] Initial app selected: ${initialApp.name}, refreshing all views...`);
       componentsProvider.refresh(initialApp);
       routesProvider.refresh(initialApp);
+      configurationsProvider.refresh(initialApp);
       jobsProvider.refresh(initialApp);
       pluginsProvider.refresh(initialApp);
       
@@ -245,12 +261,14 @@ function registerViews(
       if (app.state === 'running') {
         componentsProvider.refresh(app);
         routesProvider.refresh(app);
+        configurationsProvider.refresh(app);
         jobsProvider.refresh(app);
         pluginsProvider.refresh(app);
       } else if (app.state === 'inactive') {
         // 应用停止，刷新为静态模式
         componentsProvider.refresh(app);
         routesProvider.refresh(app);
+        configurationsProvider.refresh(app);
         jobsProvider.refresh(app);
         pluginsProvider.refresh(app);
       }
@@ -273,7 +291,21 @@ function registerViews(
     })
   );
 
-  return { configurationsProvider, refreshInitialApp };
+  return { configurationsProvider, componentsProvider, routesProvider, refreshInitialApp };
+}
+
+/**
+ * 设置 CommandManager 的 provider 引用
+ */
+function setupCommandManagerProviders(
+  commandManager: CommandManager,
+  componentsProvider: ComponentsTreeDataProviderEnhanced,
+  routesProvider: RoutesTreeDataProviderEnhanced,
+  configurationsProvider: ConfigurationsTreeDataProviderEnhanced
+): void {
+  commandManager.setComponentsProvider(componentsProvider);
+  commandManager.setRoutesProvider(routesProvider);
+  commandManager.setConfigurationsProvider(configurationsProvider);
 }
 
 /**

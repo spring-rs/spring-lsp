@@ -9,7 +9,10 @@ import { LocalAppManager } from '../controllers/LocalAppManager';
 import { LocalAppController } from '../controllers/LocalAppController';
 import { LanguageClientManager } from '../languageClient/LanguageClientManager';
 import { DependencyGraphView } from '../views/DependencyGraphView';
-import { ConfigurationsTreeDataProvider, ConfigurationStruct } from '../views/ConfigurationsTreeDataProvider';
+import { ConfigurationStruct } from '../types';
+import { ComponentsTreeDataProviderEnhanced } from '../views/ComponentsTreeDataProviderEnhanced';
+import { RoutesTreeDataProviderEnhanced } from '../views/RoutesTreeDataProviderEnhanced';
+import { ConfigurationsTreeDataProviderEnhanced } from '../views/ConfigurationsTreeDataProviderEnhanced';
 import { SpringApp } from '../models/SpringApp';
 
 /**
@@ -38,6 +41,17 @@ export const Commands = {
   CONFIGURATION_NAVIGATE: 'spring.configuration.navigate',
   CONFIGURATION_COPY_EXAMPLE: 'spring.configuration.copyExample',
 
+  // 视图模式切换命令
+  COMPONENTS_SELECT_VIEW_MODE: 'spring.components.selectViewMode',
+  COMPONENTS_TOGGLE_VIEW_MODE: 'spring.components.toggleViewMode',
+  COMPONENTS_SWITCH_TO_LIST_VIEW: 'spring.components.switchToListView',
+  ROUTES_SELECT_VIEW_MODE: 'spring.routes.selectViewMode',
+  ROUTES_TOGGLE_VIEW_MODE: 'spring.routes.toggleViewMode',
+  ROUTES_SWITCH_TO_LIST_VIEW: 'spring.routes.switchToListView',
+  CONFIGURATIONS_SELECT_VIEW_MODE: 'spring.configurations.selectViewMode',
+  CONFIGURATIONS_TOGGLE_VIEW_MODE: 'spring.configurations.toggleViewMode',
+  CONFIGURATIONS_SWITCH_TO_LIST_VIEW: 'spring.configurations.switchToListView',
+
   // 文档和帮助命令
   OPEN_DOCUMENTATION: 'spring-rs.openDocumentation',
   SHOW_WELCOME: 'spring-rs.showWelcome',
@@ -54,7 +68,9 @@ export const Commands = {
 export class CommandManager {
   private disposables: vscode.Disposable[] = [];
   private dependencyGraphView: DependencyGraphView | undefined;
-  private configurationsProvider: ConfigurationsTreeDataProvider | undefined;
+  private configurationsProvider: ConfigurationsTreeDataProviderEnhanced | undefined;
+  private componentsProvider: ComponentsTreeDataProviderEnhanced | undefined;
+  private routesProvider: RoutesTreeDataProviderEnhanced | undefined;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -66,8 +82,22 @@ export class CommandManager {
   /**
    * 设置配置视图提供者（在视图注册后调用）
    */
-  public setConfigurationsProvider(provider: ConfigurationsTreeDataProvider): void {
+  public setConfigurationsProvider(provider: ConfigurationsTreeDataProviderEnhanced): void {
     this.configurationsProvider = provider;
+  }
+
+  /**
+   * 设置组件视图提供者（在视图注册后调用）
+   */
+  public setComponentsProvider(provider: ComponentsTreeDataProviderEnhanced): void {
+    this.componentsProvider = provider;
+  }
+
+  /**
+   * 设置路由视图提供者（在视图注册后调用）
+   */
+  public setRoutesProvider(provider: RoutesTreeDataProviderEnhanced): void {
+    this.routesProvider = provider;
   }
 
   /**
@@ -82,6 +112,9 @@ export class CommandManager {
 
     // 注册配置视图命令
     this.registerConfigurationCommands();
+
+    // 注册视图模式切换命令
+    this.registerViewModeCommands();
 
     // 注册文档和帮助命令
     this.registerDocumentationCommands();
@@ -737,6 +770,74 @@ export class CommandManager {
     }
 
     return undefined;
+  }
+
+  /**
+   * 注册视图模式切换命令
+   */
+  private registerViewModeCommands(): void {
+    // Components 视图模式选择
+    this.register(Commands.COMPONENTS_SELECT_VIEW_MODE, async () => {
+      if (this.componentsProvider) {
+        await this.componentsProvider.selectViewMode();
+      }
+    });
+
+    // Components 视图模式切换（List -> Tree）
+    this.register(Commands.COMPONENTS_TOGGLE_VIEW_MODE, async () => {
+      if (this.componentsProvider) {
+        await this.componentsProvider.toggleViewMode();
+      }
+    });
+
+    // Components 切换到 List 视图（Tree -> List）
+    this.register(Commands.COMPONENTS_SWITCH_TO_LIST_VIEW, async () => {
+      if (this.componentsProvider) {
+        await this.componentsProvider.toggleViewMode();
+      }
+    });
+
+    // Routes 视图模式选择
+    this.register(Commands.ROUTES_SELECT_VIEW_MODE, async () => {
+      if (this.routesProvider) {
+        await this.routesProvider.selectViewMode();
+      }
+    });
+
+    // Routes 视图模式切换（List -> Tree）
+    this.register(Commands.ROUTES_TOGGLE_VIEW_MODE, async () => {
+      if (this.routesProvider) {
+        await this.routesProvider.toggleViewMode();
+      }
+    });
+
+    // Routes 切换到 List 视图（Tree -> List）
+    this.register(Commands.ROUTES_SWITCH_TO_LIST_VIEW, async () => {
+      if (this.routesProvider) {
+        await this.routesProvider.toggleViewMode();
+      }
+    });
+
+    // Configurations 视图模式选择
+    this.register(Commands.CONFIGURATIONS_SELECT_VIEW_MODE, async () => {
+      if (this.configurationsProvider && 'selectViewMode' in this.configurationsProvider) {
+        await this.configurationsProvider.selectViewMode();
+      }
+    });
+
+    // Configurations 视图模式切换（List -> Tree）
+    this.register(Commands.CONFIGURATIONS_TOGGLE_VIEW_MODE, async () => {
+      if (this.configurationsProvider && 'toggleViewMode' in this.configurationsProvider) {
+        await this.configurationsProvider.toggleViewMode();
+      }
+    });
+
+    // Configurations 切换到 List 视图（Tree -> List）
+    this.register(Commands.CONFIGURATIONS_SWITCH_TO_LIST_VIEW, async () => {
+      if (this.configurationsProvider && 'toggleViewMode' in this.configurationsProvider) {
+        await this.configurationsProvider.toggleViewMode();
+      }
+    });
   }
 
   /**

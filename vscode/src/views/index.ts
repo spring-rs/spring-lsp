@@ -7,9 +7,6 @@
  */
 
 export { AppsTreeDataProvider, AppTreeItem, InfoTreeItem } from './AppsTreeDataProvider';
-export { ComponentsTreeDataProvider, ComponentTreeItem } from './ComponentsTreeDataProvider';
-export { RoutesTreeDataProvider, RouteTreeItem, MethodGroupItem, RouteItem } from './RoutesTreeDataProvider';
 export { JobsTreeDataProvider, JobTreeItem } from './JobsTreeDataProvider';
 export { PluginsTreeDataProvider, PluginTreeItem } from './PluginsTreeDataProvider';
-export { ConfigurationsTreeDataProvider, ConfigurationStruct, ConfigField } from './ConfigurationsTreeDataProvider';
 export { DependencyGraphView } from './DependencyGraphView';

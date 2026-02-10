@@ -6,7 +6,8 @@ import { GutterActionProvider } from './GutterActionProvider';
  * 负责在编辑器行号旁显示图标，标识组件、路由和任务
  */
 export class GutterDecorationManager {
-  private componentDecorationType: vscode.TextEditorDecorationType;
+  private componentClassDecorationType: vscode.TextEditorDecorationType;
+  private componentFunctionDecorationType: vscode.TextEditorDecorationType;
   private configDecorationType: vscode.TextEditorDecorationType;
   private routeDecorationType: vscode.TextEditorDecorationType;
   private routeOpenapiDecorationType: vscode.TextEditorDecorationType;
@@ -19,8 +20,9 @@ export class GutterDecorationManager {
   constructor(private context: vscode.ExtensionContext) {
     this.actionProvider = new GutterActionProvider(context);
 
-    // 创建装饰类型（使用与视图相同的颜色）
-    this.componentDecorationType = this.createDecorationType('component', 'symbolIcon.classForeground');
+    // 创建装饰类型（使用与视图相同的 SVG 图标）
+    this.componentClassDecorationType = this.createDecorationType('component-class', 'symbolIcon.classForeground');
+    this.componentFunctionDecorationType = this.createDecorationType('component-function', 'symbolIcon.methodForeground');
     this.configDecorationType = this.createDecorationType('config', 'symbolIcon.structForeground');
     this.routeDecorationType = this.createDecorationType('route', 'symbolIcon.methodForeground');
     this.routeOpenapiDecorationType = this.createDecorationType('route-openapi', 'charts.purple');
@@ -135,17 +137,19 @@ export class GutterDecorationManager {
     }
 
     const text = editor.document.getText();
-    const componentDecorations: vscode.DecorationOptions[] = [];
+    const componentClassDecorations: vscode.DecorationOptions[] = [];
+    const componentFunctionDecorations: vscode.DecorationOptions[] = [];
     const configDecorations: vscode.DecorationOptions[] = [];
     const routeDecorations: vscode.DecorationOptions[] = [];
     const routeOpenapiDecorations: vscode.DecorationOptions[] = [];
     const cronDecorations: vscode.DecorationOptions[] = [];
 
     // 分析代码并找到需要装饰的行
-    this.analyzeCode(text, editor.document, componentDecorations, configDecorations, routeDecorations, routeOpenapiDecorations, cronDecorations);
+    this.analyzeCode(text, editor.document, componentClassDecorations, componentFunctionDecorations, configDecorations, routeDecorations, routeOpenapiDecorations, cronDecorations);
 
     // 应用装饰
-    editor.setDecorations(this.componentDecorationType, componentDecorations);
+    editor.setDecorations(this.componentClassDecorationType, componentClassDecorations);
+    editor.setDecorations(this.componentFunctionDecorationType, componentFunctionDecorations);
     editor.setDecorations(this.configDecorationType, configDecorations);
     editor.setDecorations(this.routeDecorationType, routeDecorations);
     editor.setDecorations(this.routeOpenapiDecorationType, routeOpenapiDecorations);
@@ -158,7 +162,8 @@ export class GutterDecorationManager {
   private analyzeCode(
     text: string,
     document: vscode.TextDocument,
-    componentDecorations: vscode.DecorationOptions[],
+    componentClassDecorations: vscode.DecorationOptions[],
+    componentFunctionDecorations: vscode.DecorationOptions[],
     configDecorations: vscode.DecorationOptions[],
     routeDecorations: vscode.DecorationOptions[],
     routeOpenapiDecorations: vscode.DecorationOptions[],
@@ -188,14 +193,26 @@ export class GutterDecorationManager {
         continue;
       }
 
-      // 检查 #[derive(Service)]
+      // 检查 #[derive(Service)] - 使用 class 图标
       if (this.isServiceDerive(trimmedLine)) {
         const range = new vscode.Range(i, 0, i, line.length);
         const structName = this.findStructName(lines, i);
-        componentDecorations.push({
+        componentClassDecorations.push({
           range,
           hoverMessage: new vscode.MarkdownString(
-            `**Spring Component**\n\n${structName ? `Struct: \`${structName}\`` : 'This struct is registered as a component'}\n\nClick to see quick actions`
+            `**Spring Component**\n\n${structName ? `Struct: \`${structName}\`` : 'This struct is registered as a component'}\n\n🔵 _Service derive macro_\n\nClick to see quick actions`
+          ),
+        });
+      }
+
+      // 检查 #[component] 宏 - 使用 function 图标
+      if (this.isComponentMacro(trimmedLine)) {
+        const range = new vscode.Range(i, 0, i, line.length);
+        const functionName = this.findFunctionName(lines, i);
+        componentFunctionDecorations.push({
+          range,
+          hoverMessage: new vscode.MarkdownString(
+            `**Spring Component**\n\n${functionName ? `Function: \`${functionName}\`` : 'This function is registered as a component'}\n\n🟣 _Component function macro_\n\nClick to see quick actions`
           ),
         });
       }
@@ -255,6 +272,13 @@ export class GutterDecorationManager {
    */
   private isServiceDerive(line: string): boolean {
     return /^#\[derive\([^)]*Service[^)]*\)\]/.test(line);
+  }
+
+  /**
+   * 检查是否是 component 宏
+   */
+  private isComponentMacro(line: string): boolean {
+    return /^#\[component(?:\(|$)/.test(line);
   }
 
   /**
@@ -406,7 +430,8 @@ export class GutterDecorationManager {
   private clearAllDecorations(): void {
     const editor = vscode.window.activeTextEditor;
     if (editor) {
-      editor.setDecorations(this.componentDecorationType, []);
+      editor.setDecorations(this.componentClassDecorationType, []);
+      editor.setDecorations(this.componentFunctionDecorationType, []);
       editor.setDecorations(this.configDecorationType, []);
       editor.setDecorations(this.routeDecorationType, []);
       editor.setDecorations(this.routeOpenapiDecorationType, []);
@@ -418,7 +443,8 @@ export class GutterDecorationManager {
    * 释放资源
    */
   public dispose(): void {
-    this.componentDecorationType.dispose();
+    this.componentClassDecorationType.dispose();
+    this.componentFunctionDecorationType.dispose();
     this.configDecorationType.dispose();
     this.routeDecorationType.dispose();
     this.routeOpenapiDecorationType.dispose();
@@ -443,7 +469,7 @@ export class GutterDecorationManager {
     const lineText = document.lineAt(line).text.trim();
 
     // 检查这一行是什么类型的装饰
-    if (this.isServiceDerive(lineText)) {
+    if (this.isServiceDerive(lineText) || this.isComponentMacro(lineText)) {
       await this.actionProvider.showComponentActions(document, line);
     } else if (this.isConfigurableDerive(lineText)) {
       // 新增：处理配置结构的点击

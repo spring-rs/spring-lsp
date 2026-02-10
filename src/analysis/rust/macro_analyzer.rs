@@ -20,6 +20,8 @@ pub struct RustDocument {
 pub enum SpringMacro {
     /// Service 派生宏
     DeriveService(ServiceMacro),
+    /// Component 属性宏
+    Component(ComponentMacro),
     /// Inject 属性宏
     Inject(InjectMacro),
     /// AutoConfig 属性宏
@@ -39,6 +41,41 @@ pub struct ServiceMacro {
     pub fields: Vec<Field>,
     /// 宏在源代码中的位置
     pub range: Range,
+}
+
+/// Component 属性宏信息
+#[derive(Debug, Clone)]
+pub struct ComponentMacro {
+    /// 函数名称
+    pub function_name: String,
+    /// 组件类型名称（从返回类型提取）
+    pub component_type: String,
+    /// 依赖列表（从函数参数提取）
+    pub dependencies: Vec<ComponentDependency>,
+    /// 插件名称（可选，从 #[component(name = "...")] 提取）
+    pub plugin_name: Option<String>,
+    /// 是否是异步函数
+    pub is_async: bool,
+    /// 宏在源代码中的位置
+    pub range: Range,
+}
+
+/// 组件依赖信息
+#[derive(Debug, Clone)]
+pub struct ComponentDependency {
+    /// 依赖类型（Config 或 Component）
+    pub dep_type: DependencyType,
+    /// 类型名称
+    pub type_name: String,
+}
+
+/// 依赖类型
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DependencyType {
+    /// Config<T> 依赖
+    Config,
+    /// Component<T> 依赖
+    Component,
 }
 
 /// 字段信息
@@ -194,11 +231,59 @@ impl MacroAnalyzer {
     pub fn hover_macro(&self, macro_info: &SpringMacro) -> String {
         match macro_info {
             SpringMacro::DeriveService(service) => self.hover_service_macro(service),
+            SpringMacro::Component(component) => self.hover_component_macro(component),
             SpringMacro::Inject(inject) => self.hover_inject_macro(inject),
             SpringMacro::AutoConfig(auto_config) => self.hover_auto_config_macro(auto_config),
             SpringMacro::Route(route) => self.hover_route_macro(route),
             SpringMacro::Job(job) => self.hover_job_macro(job),
         }
+    }
+
+    /// 为 Component 宏提供悬停提示
+    ///
+    /// 显示 Component 宏的说明和生成的 Plugin 实现代码
+    fn hover_component_macro(&self, component: &ComponentMacro) -> String {
+        let mut hover = String::new();
+
+        // 添加标题
+        hover.push_str("# Component 属性宏\n\n");
+
+        // 添加说明
+        hover.push_str("自动将组件创建函数转换为 Plugin 实现，无需手动实现 Plugin trait。\n\n");
+
+        // 添加函数信息
+        hover.push_str(&format!("**函数**: `{}`\n\n", component.function_name));
+        hover.push_str(&format!("**组件类型**: `{}`\n\n", component.component_type));
+
+        if let Some(name) = &component.plugin_name {
+            hover.push_str(&format!("**插件名称**: `\"{}\"`\n\n", name));
+        }
+
+        hover.push_str(&format!(
+            "**异步**: {}\n\n",
+            if component.is_async { "是" } else { "否" }
+        ));
+
+        // 添加依赖信息
+        if !component.dependencies.is_empty() {
+            hover.push_str("**依赖**:\n\n");
+            for dep in &component.dependencies {
+                let dep_type_str = match dep.dep_type {
+                    DependencyType::Config => "配置",
+                    DependencyType::Component => "组件",
+                };
+                hover.push_str(&format!("- `{}` - {}\n", dep.type_name, dep_type_str));
+            }
+            hover.push('\n');
+        }
+
+        // 添加展开后的代码
+        hover.push_str("**展开后的代码**:\n\n");
+        hover.push_str("```rust\n");
+        hover.push_str(&self.expand_component_macro(component));
+        hover.push_str("```\n");
+
+        hover
     }
 
     /// 为 Service 宏提供悬停提示
@@ -423,11 +508,117 @@ impl MacroAnalyzer {
     pub fn expand_macro(&self, macro_info: &SpringMacro) -> String {
         match macro_info {
             SpringMacro::DeriveService(service) => self.expand_service_macro(service),
+            SpringMacro::Component(component) => self.expand_component_macro(component),
             SpringMacro::Inject(inject) => self.expand_inject_macro(inject),
             SpringMacro::AutoConfig(auto_config) => self.expand_auto_config_macro(auto_config),
             SpringMacro::Route(route) => self.expand_route_macro(route),
             SpringMacro::Job(job) => self.expand_job_macro(job),
         }
+    }
+
+    /// 展开 Component 属性宏
+    ///
+    /// 生成 Plugin trait 的实现代码
+    fn expand_component_macro(&self, component: &ComponentMacro) -> String {
+        let mut code = String::new();
+
+        // 生成原始函数定义（带注释）
+        code.push_str("// 原始定义\n");
+        code.push_str("#[component");
+        if let Some(name) = &component.plugin_name {
+            code.push_str(&format!("(name = \"{}\")", name));
+        }
+        code.push_str("]\n");
+
+        if component.is_async {
+            code.push_str("async ");
+        }
+        code.push_str(&format!("fn {}(", component.function_name));
+
+        for (i, dep) in component.dependencies.iter().enumerate() {
+            if i > 0 {
+                code.push_str(", ");
+            }
+            match dep.dep_type {
+                DependencyType::Config => {
+                    code.push_str(&format!("Config(config): Config<{}>", dep.type_name));
+                }
+                DependencyType::Component => {
+                    code.push_str(&format!("Component(comp): Component<{}>", dep.type_name));
+                }
+            }
+        }
+
+        code.push_str(&format!(") -> {} {{\n", component.component_type));
+        code.push_str("    // ...\n");
+        code.push_str("}\n\n");
+
+        // 生成展开后的 Plugin 实现
+        code.push_str("// 展开后的代码\n");
+
+        let plugin_name = component
+            .plugin_name
+            .as_ref()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!("{}Plugin", component.component_type));
+
+        code.push_str(&format!("struct {};\n\n", plugin_name));
+        code.push_str("#[::spring::async_trait]\n");
+        code.push_str(&format!(
+            "impl ::spring::plugin::Plugin for {} {{\n",
+            plugin_name
+        ));
+        code.push_str("    async fn build(&self, app: &mut ::spring::app::AppBuilder) {{\n");
+
+        // 生成依赖获取代码
+        for dep in &component.dependencies {
+            match dep.dep_type {
+                DependencyType::Config => {
+                    code.push_str(&format!(
+                        "        let config = app.get_config::<{}>()?;\n",
+                        dep.type_name
+                    ));
+                }
+                DependencyType::Component => {
+                    code.push_str(&format!(
+                        "        let comp = app.get_component::<{}>()?;\n",
+                        dep.type_name
+                    ));
+                }
+            }
+        }
+
+        // 生成组件创建调用
+        code.push_str(&format!(
+            "        let component = {}(",
+            component.function_name
+        ));
+        for (i, dep) in component.dependencies.iter().enumerate() {
+            if i > 0 {
+                code.push_str(", ");
+            }
+            match dep.dep_type {
+                DependencyType::Config => code.push_str("Config(config)"),
+                DependencyType::Component => code.push_str("Component(comp)"),
+            }
+        }
+        if component.is_async {
+            code.push_str(").await?;\n");
+        } else {
+            code.push_str(")?;\n");
+        }
+
+        code.push_str("        app.add_component(component);\n");
+        code.push_str("    }\n");
+        code.push_str("}\n\n");
+
+        // 生成自动注册代码
+        code.push_str(&format!(
+            "::spring::submit_component_plugin!({}); \n",
+            plugin_name
+        ));
+
+        code
     }
 
     /// 展开 Service 派生宏
@@ -728,6 +919,11 @@ impl MacroAnalyzer {
                 }
                 // 处理函数定义
                 syn::Item::Fn(item_fn) => {
+                    // 检查 Component 宏
+                    if let Some(component_macro) = self.extract_component_macro(item_fn) {
+                        macros.push(SpringMacro::Component(component_macro));
+                    }
+
                     // 检查路由宏
                     if let Some(route_macro) = self.extract_route_macro(item_fn) {
                         macros.push(SpringMacro::Route(route_macro));
@@ -749,6 +945,110 @@ impl MacroAnalyzer {
 
         doc.macros = macros;
         Ok(doc)
+    }
+
+    /// 提取 Component 属性宏
+    fn extract_component_macro(&self, item_fn: &syn::ItemFn) -> Option<ComponentMacro> {
+        // 检查是否有 #[component] 属性
+        for attr in &item_fn.attrs {
+            if attr.path().is_ident("component") {
+                // 提取插件名称（如果有）
+                let plugin_name = if let Ok(meta_list) = attr.meta.require_list() {
+                    self.extract_component_name(&meta_list.tokens.to_string())
+                } else {
+                    None
+                };
+
+                // 提取函数参数中的依赖
+                let dependencies = self.extract_component_dependencies(&item_fn.sig.inputs);
+
+                // 提取返回类型
+                let component_type = self.extract_return_type(&item_fn.sig.output);
+
+                // 检查是否是异步函数
+                let is_async = item_fn.sig.asyncness.is_some();
+
+                return Some(ComponentMacro {
+                    function_name: item_fn.sig.ident.to_string(),
+                    component_type,
+                    dependencies,
+                    plugin_name,
+                    is_async,
+                    range: self.span_to_range(&item_fn.sig.ident.span()),
+                });
+            }
+        }
+        None
+    }
+
+    /// 从函数参数中提取组件依赖
+    fn extract_component_dependencies(
+        &self,
+        inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>,
+    ) -> Vec<ComponentDependency> {
+        let mut dependencies = Vec::new();
+
+        for input in inputs {
+            if let syn::FnArg::Typed(pat_type) = input {
+                // 检查参数类型
+                if let syn::Type::Path(type_path) = &*pat_type.ty {
+                    if let Some(last_segment) = type_path.path.segments.last() {
+                        let type_name = last_segment.ident.to_string();
+
+                        // 检查是否是 Config<T> 或 Component<T>
+                        if type_name == "Config" || type_name == "Component" {
+                            if let syn::PathArguments::AngleBracketed(args) =
+                                &last_segment.arguments
+                            {
+                                if let Some(syn::GenericArgument::Type(inner_ty)) =
+                                    args.args.first()
+                                {
+                                    let inner_type_name = self.type_to_string(inner_ty);
+                                    let dep_type = if type_name == "Config" {
+                                        DependencyType::Config
+                                    } else {
+                                        DependencyType::Component
+                                    };
+
+                                    dependencies.push(ComponentDependency {
+                                        dep_type,
+                                        type_name: inner_type_name,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        dependencies
+    }
+
+    /// 从函数返回类型中提取组件类型
+    fn extract_return_type(&self, output: &syn::ReturnType) -> String {
+        match output {
+            syn::ReturnType::Type(_, ty) => {
+                // 如果返回 Result<T, E>，提取 T
+                if let syn::Type::Path(type_path) = &**ty {
+                    if let Some(last_segment) = type_path.path.segments.last() {
+                        if last_segment.ident == "Result" {
+                            if let syn::PathArguments::AngleBracketed(args) =
+                                &last_segment.arguments
+                            {
+                                if let Some(syn::GenericArgument::Type(inner_ty)) =
+                                    args.args.first()
+                                {
+                                    return self.type_to_string(inner_ty);
+                                }
+                            }
+                        }
+                    }
+                }
+                self.type_to_string(ty)
+            }
+            syn::ReturnType::Default => "()".to_string(),
+        }
     }
 
     /// 提取 Service 派生宏
@@ -1124,11 +1424,79 @@ impl MacroAnalyzer {
     pub fn validate_macro(&self, macro_info: &SpringMacro) -> Vec<lsp_types::Diagnostic> {
         match macro_info {
             SpringMacro::DeriveService(service) => self.validate_service_macro(service),
+            SpringMacro::Component(component) => self.validate_component_macro(component),
             SpringMacro::Inject(inject) => self.validate_inject_macro(inject),
             SpringMacro::AutoConfig(auto_config) => self.validate_auto_config_macro(auto_config),
             SpringMacro::Route(route) => self.validate_route_macro(route),
             SpringMacro::Job(job) => self.validate_job_macro(job),
         }
+    }
+
+    /// 验证 Component 宏
+    ///
+    /// 检查函数签名和参数是否正确
+    fn validate_component_macro(&self, component: &ComponentMacro) -> Vec<lsp_types::Diagnostic> {
+        let mut diagnostics = Vec::new();
+
+        // 检查组件类型是否为空
+        if component.component_type.is_empty() || component.component_type == "()" {
+            diagnostics.push(lsp_types::Diagnostic {
+                range: component.range,
+                severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                code: Some(lsp_types::NumberOrString::String("E016".to_string())),
+                source: Some("spring-lsp".to_string()),
+                message: "Component 函数必须返回一个具体的类型，不能是 ()".to_string(),
+                related_information: None,
+                tags: None,
+                code_description: None,
+                data: None,
+            });
+        }
+
+        // 检查插件名称是否为空字符串
+        if let Some(name) = &component.plugin_name {
+            if name.is_empty() {
+                diagnostics.push(lsp_types::Diagnostic {
+                    range: component.range,
+                    severity: Some(lsp_types::DiagnosticSeverity::ERROR),
+                    code: Some(lsp_types::NumberOrString::String("E017".to_string())),
+                    source: Some("spring-lsp".to_string()),
+                    message: "插件名称不能为空字符串".to_string(),
+                    related_information: None,
+                    tags: None,
+                    code_description: None,
+                    data: None,
+                });
+            }
+        }
+
+        // 检查是否有重复的依赖类型
+        let mut seen_types = std::collections::HashSet::new();
+        for dep in &component.dependencies {
+            let key = format!("{:?}:{}", dep.dep_type, dep.type_name);
+            if !seen_types.insert(key) {
+                diagnostics.push(lsp_types::Diagnostic {
+                    range: component.range,
+                    severity: Some(lsp_types::DiagnosticSeverity::WARNING),
+                    code: Some(lsp_types::NumberOrString::String("W002".to_string())),
+                    source: Some("spring-lsp".to_string()),
+                    message: format!(
+                        "重复的依赖: {} {}",
+                        match dep.dep_type {
+                            DependencyType::Config => "Config",
+                            DependencyType::Component => "Component",
+                        },
+                        dep.type_name
+                    ),
+                    related_information: None,
+                    tags: None,
+                    code_description: None,
+                    data: None,
+                });
+            }
+        }
+
+        diagnostics
     }
 
     /// 验证 Service 宏

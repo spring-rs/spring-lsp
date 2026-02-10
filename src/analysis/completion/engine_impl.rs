@@ -1,7 +1,8 @@
 //! 智能补全引擎模块
 
 use lsp_types::{
-    CompletionItem, CompletionItemKind, Documentation, MarkupContent, MarkupKind, Position, Range,
+    CompletionItem, CompletionItemKind, Documentation, InsertTextFormat, MarkupContent, MarkupKind,
+    Position, Range,
 };
 
 use crate::analysis::rust::macro_analyzer::SpringMacro;
@@ -521,11 +522,29 @@ impl CompletionEngine {
     ) -> Vec<CompletionItem> {
         match macro_info {
             SpringMacro::DeriveService(_) => self.complete_service_macro(),
+            SpringMacro::Component(_) => self.complete_component_macro(),
             SpringMacro::Inject(_) => self.complete_inject_macro(),
             SpringMacro::AutoConfig(_) => self.complete_auto_config_macro(),
             SpringMacro::Route(_) => self.complete_route_macro(),
             SpringMacro::Job(_) => self.complete_job_macro(),
         }
+    }
+
+    /// 为 Component 宏提供补全
+    ///
+    /// 提供 name 参数的补全
+    fn complete_component_macro(&self) -> Vec<CompletionItem> {
+        vec![CompletionItem {
+            label: "name".to_string(),
+            kind: Some(CompletionItemKind::PROPERTY),
+            detail: Some("插件名称".to_string()),
+            documentation: Some(Documentation::String(
+                "指定自定义的插件名称，默认使用组件类型名 + \"Plugin\"".to_string(),
+            )),
+            insert_text: Some("name = \"$1\"".to_string()),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            ..Default::default()
+        }]
     }
 
     /// 为 Service 宏提供补全

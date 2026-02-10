@@ -4,7 +4,7 @@
  * 定义与语言服务器通信的请求和响应类型
  */
 
-import { Location, ComponentScope, JobType } from './common';
+import { Location, ComponentScope, ComponentSource, JobType } from './common';
 
 /**
  * Component 接口
@@ -28,6 +28,11 @@ export interface Component {
   scope: ComponentScope;
 
   /**
+   * 组件定义方式（Service 或 Component）
+   */
+  source: ComponentSource;
+
+  /**
    * 依赖的组件类型名列表
    */
   dependencies: string[];
@@ -44,6 +49,11 @@ export interface Component {
  * 表示一个 HTTP 路由
  */
 export interface Route {
+  /**
+   * 路由名称（用于显示，通常是 handler 名称）
+   */
+  name: string;
+
   /**
    * HTTP 方法（GET, POST, PUT, DELETE, PATCH 等）
    */
@@ -68,6 +78,87 @@ export interface Route {
    * 路由定义位置（可选）
    */
   location?: Location;
+}
+
+/**
+ * Configuration 接口
+ * 
+ * 表示一个配置项
+ */
+export interface Configuration {
+  /**
+   * 配置项名称（键）
+   */
+  name: string;
+
+  /**
+   * 配置项值
+   */
+  value?: string;
+
+  /**
+   * 所属配置节（如 web, database 等）
+   */
+  section?: string;
+
+  /**
+   * 配置项定义位置
+   */
+  location?: Location;
+}
+
+/**
+ * ConfigurationStruct 接口
+ * 
+ * 表示一个配置结构体（带有 #[derive(Configurable)] 的结构体）
+ */
+export interface ConfigurationStruct {
+  /**
+   * 结构体名称
+   */
+  name: string;
+
+  /**
+   * 配置前缀（从 #[config_prefix = "..."] 提取）
+   */
+  prefix: string;
+
+  /**
+   * 字段列表
+   */
+  fields: ConfigField[];
+
+  /**
+   * 定义位置
+   */
+  location?: Location;
+}
+
+/**
+ * ConfigField 接口
+ * 
+ * 表示配置结构体的一个字段
+ */
+export interface ConfigField {
+  /**
+   * 字段名称
+   */
+  name: string;
+
+  /**
+   * 字段类型
+   */
+  type: string;
+
+  /**
+   * 是否可选
+   */
+  optional: boolean;
+
+  /**
+   * 描述（从文档注释提取）
+   */
+  description?: string;
 }
 
 /**
@@ -167,6 +258,26 @@ export interface RoutesResponse {
    * 路由列表
    */
   routes: Route[];
+}
+
+/**
+ * LSP 请求：获取配置列表
+ */
+export interface ConfigurationsRequest {
+  /**
+   * 应用路径
+   */
+  appPath: string;
+}
+
+/**
+ * LSP 响应：配置列表
+ */
+export interface ConfigurationsResponse {
+  /**
+   * 配置结构体列表
+   */
+  configurations: ConfigurationStruct[];
 }
 
 /**

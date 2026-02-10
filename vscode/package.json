@@ -201,6 +201,60 @@
         "title": "Copy Config Example",
         "category": "Spring RS",
         "icon": "$(copy)"
+      },
+      {
+        "command": "spring.components.selectViewMode",
+        "title": "Select View Mode...",
+        "category": "Spring RS",
+        "icon": "$(list-selection)"
+      },
+      {
+        "command": "spring.components.toggleViewMode",
+        "title": "Switch to Tree View",
+        "category": "Spring RS",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "spring.components.switchToListView",
+        "title": "Switch to List View",
+        "category": "Spring RS",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "spring.routes.selectViewMode",
+        "title": "Select View Mode...",
+        "category": "Spring RS",
+        "icon": "$(list-selection)"
+      },
+      {
+        "command": "spring.routes.toggleViewMode",
+        "title": "Switch to Tree View",
+        "category": "Spring RS",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "spring.routes.switchToListView",
+        "title": "Switch to List View",
+        "category": "Spring RS",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "spring.configurations.selectViewMode",
+        "title": "Select View Mode...",
+        "category": "Spring RS",
+        "icon": "$(list-selection)"
+      },
+      {
+        "command": "spring.configurations.toggleViewMode",
+        "title": "Switch to Tree View",
+        "category": "Spring RS",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "spring.configurations.switchToListView",
+        "title": "Switch to List View",
+        "category": "Spring RS",
+        "icon": "$(list-flat)"
       }
     ],
     "menus": {
@@ -224,6 +278,36 @@
           "command": "spring.configuration.refresh",
           "when": "view == spring.configurations",
           "group": "navigation@5"
+        },
+        {
+          "command": "spring.components.toggleViewMode",
+          "when": "view == spring.components && config.spring-lsp.componentsViewMode == list",
+          "group": "navigation@1"
+        },
+        {
+          "command": "spring.components.switchToListView",
+          "when": "view == spring.components && config.spring-lsp.componentsViewMode == tree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "spring.routes.toggleViewMode",
+          "when": "view == spring.routes && config.spring-lsp.routesViewMode == list",
+          "group": "navigation@1"
+        },
+        {
+          "command": "spring.routes.switchToListView",
+          "when": "view == spring.routes && config.spring-lsp.routesViewMode == tree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "spring.configurations.toggleViewMode",
+          "when": "view == spring.configurations && config.spring-lsp.configurationsViewMode == list",
+          "group": "navigation@1"
+        },
+        {
+          "command": "spring.configurations.switchToListView",
+          "when": "view == spring.configurations && config.spring-lsp.configurationsViewMode == tree",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [
@@ -410,6 +494,45 @@
           ],
           "default": "off",
           "description": "Traces the communication between VS Code and the language server"
+        },
+        "spring-lsp.componentsViewMode": {
+          "type": "string",
+          "enum": [
+            "list",
+            "tree"
+          ],
+          "default": "list",
+          "enumDescriptions": [
+            "Flat list view - show all components directly",
+            "Tree view - group components by file"
+          ],
+          "description": "View mode for Components view"
+        },
+        "spring-lsp.routesViewMode": {
+          "type": "string",
+          "enum": [
+            "list",
+            "tree"
+          ],
+          "default": "list",
+          "enumDescriptions": [
+            "List view - group routes by HTTP method",
+            "Tree view - group routes by file"
+          ],
+          "description": "View mode for Routes view"
+        },
+        "spring-lsp.configurationsViewMode": {
+          "type": "string",
+          "enum": [
+            "list",
+            "tree"
+          ],
+          "default": "list",
+          "enumDescriptions": [
+            "List view - group configurations by section",
+            "Tree view - group configurations by file"
+          ],
+          "description": "View mode for Configurations view"
         }
       }
     },
