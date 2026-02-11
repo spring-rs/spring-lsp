@@ -84,6 +84,8 @@ pub struct LspServer {
     connection: Connection,
     /// 服务器状态
     pub state: ServerState,
+    /// 工作空间路径
+    pub workspace_path: Option<std::path::PathBuf>,
     /// 文档管理器
     pub document_manager: Arc<DocumentManager>,
     /// 错误处理器
@@ -189,6 +191,7 @@ impl LspServer {
         Ok(Self {
             connection,
             state: ServerState::Uninitialized,
+            workspace_path: None,
             document_manager: Arc::new(DocumentManager::new()),
             error_handler: ErrorHandler::new(verbose),
             config,
@@ -351,6 +354,8 @@ impl LspServer {
             GotoDefinition::METHOD => self.handle_goto_definition(req),
             // 文档符号请求
             DocumentSymbolRequest::METHOD => self.handle_document_symbol(req),
+            // 工作空间符号请求
+            "workspace/symbol" => self.handle_workspace_symbol(req),
             // 状态查询请求
             "spring-lsp/status" => self.handle_status_query(req),
             // 自定义请求：获取组件列表
@@ -1002,6 +1007,216 @@ impl LspServer {
         Ok(())
     }
 
+    /// 处理 workspace/symbol 请求
+    ///
+    /// 在整个工作空间中搜索符号（组件、路由、配置等）
+    fn handle_workspace_symbol(&self, req: Request) -> Result<()> {
+        tracing::debug!("Handling workspace/symbol request");
+
+        // 解析请求参数
+        let params: serde_json::Value = req.params;
+        let query = params
+            .get("query")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        tracing::debug!("Workspace symbol query: '{}'", query);
+
+        let mut symbols: Vec<lsp_types::SymbolInformation> = vec![];
+
+        // 从 workspace_path 获取工作空间路径
+        if let Some(workspace_path) = &self.workspace_path {
+            // 搜索组件
+            if let Ok(component_symbols) = self.search_component_symbols(workspace_path, &query) {
+                symbols.extend(component_symbols);
+            }
+
+            // 搜索路由
+            if let Ok(route_symbols) = self.search_route_symbols(workspace_path, &query) {
+                symbols.extend(route_symbols);
+            }
+
+            // 搜索配置
+            if let Ok(config_symbols) = self.search_config_symbols(workspace_path, &query) {
+                symbols.extend(config_symbols);
+            }
+        }
+
+        tracing::debug!(
+            "Found {} workspace symbols matching '{}'",
+            symbols.len(),
+            query
+        );
+
+        let result = serde_json::to_value(symbols)?;
+
+        let response = Response {
+            id: req.id,
+            result: Some(result),
+            error: None,
+        };
+
+        self.connection
+            .sender
+            .send(Message::Response(response))
+            .map_err(|e| Error::MessageSend(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// 搜索组件符号
+    fn search_component_symbols(
+        &self,
+        workspace_path: &std::path::Path,
+        query: &str,
+    ) -> Result<Vec<lsp_types::SymbolInformation>> {
+        use crate::scanner::component::{ComponentScanner, ComponentSource};
+        use lsp_types::{Location, Position, Range, SymbolInformation, SymbolKind, Url};
+
+        let scanner = ComponentScanner::new();
+        let components = scanner
+            .scan_components(workspace_path)
+            .map_err(|e| Error::Other(anyhow::anyhow!("Failed to scan components: {}", e)))?;
+
+        let mut symbols = Vec::new();
+
+        for component in components {
+            // 过滤：如果有查询字符串，检查组件名称是否匹配
+            if !query.is_empty() && !component.name.to_lowercase().contains(query) {
+                continue;
+            }
+
+            // 转换 LocationResponse 到 lsp_types::Location
+            let uri = Url::parse(&component.location.uri)
+                .map_err(|e| Error::Other(anyhow::anyhow!("Invalid URI: {}", e)))?;
+
+            let range = Range {
+                start: Position {
+                    line: component.location.range.start.line,
+                    character: component.location.range.start.character,
+                },
+                end: Position {
+                    line: component.location.range.end.line,
+                    character: component.location.range.end.character,
+                },
+            };
+
+            // 根据组件来源使用不同的图标
+            // #[component] 使用 METHOD (symbol-method)
+            // #[derive(Service)] 使用 CLASS (symbol-class)
+            let kind = match component.source {
+                ComponentSource::Component => SymbolKind::METHOD,
+                ComponentSource::Service => SymbolKind::CLASS,
+            };
+
+            #[allow(deprecated)]
+            symbols.push(SymbolInformation {
+                name: component.name.clone(),
+                kind,
+                tags: None,
+                deprecated: None,
+                location: Location { uri, range },
+                container_name: Some(format!("Component ({})", component.type_name)),
+            });
+        }
+
+        Ok(symbols)
+    }
+
+    /// 搜索路由符号
+    fn search_route_symbols(
+        &self,
+        workspace_path: &std::path::Path,
+        query: &str,
+    ) -> Result<Vec<lsp_types::SymbolInformation>> {
+        use crate::scanner::route::RouteScanner;
+        use lsp_types::{Location, Position, Range, SymbolInformation, SymbolKind, Url};
+
+        let scanner = RouteScanner::new();
+        let routes = scanner
+            .scan_routes(workspace_path)
+            .map_err(|e| Error::Other(anyhow::anyhow!("Failed to scan routes: {}", e)))?;
+
+        let mut symbols = Vec::new();
+
+        for route in routes {
+            // 构建搜索文本：方法 + 路径
+            let search_text = format!("{} {}", route.method, route.path).to_lowercase();
+
+            // 过滤：如果有查询字符串，检查路由是否匹配
+            if !query.is_empty() && !search_text.contains(query) {
+                continue;
+            }
+
+            // 转换 LocationResponse 到 lsp_types::Location
+            let uri = Url::parse(&route.location.uri)
+                .map_err(|e| Error::Other(anyhow::anyhow!("Invalid URI: {}", e)))?;
+
+            let range = Range {
+                start: Position {
+                    line: route.location.range.start.line,
+                    character: route.location.range.start.character,
+                },
+                end: Position {
+                    line: route.location.range.end.line,
+                    character: route.location.range.end.character,
+                },
+            };
+
+            #[allow(deprecated)]
+            symbols.push(SymbolInformation {
+                name: format!("{} {}", route.method, route.path),
+                kind: SymbolKind::FUNCTION,
+                tags: None,
+                deprecated: None,
+                location: Location { uri, range },
+                container_name: Some(format!("Route ({})", route.handler)),
+            });
+        }
+
+        Ok(symbols)
+    }
+
+    /// 搜索配置符号
+    fn search_config_symbols(
+        &self,
+        workspace_path: &std::path::Path,
+        query: &str,
+    ) -> Result<Vec<lsp_types::SymbolInformation>> {
+        use crate::scanner::config::ConfigScanner;
+        use lsp_types::{SymbolInformation, SymbolKind};
+
+        let scanner = ConfigScanner::new();
+        let configs = scanner
+            .scan_configurations(workspace_path)
+            .map_err(|e| Error::Other(anyhow::anyhow!("Failed to scan configurations: {}", e)))?;
+
+        let mut symbols = Vec::new();
+
+        for config in configs {
+            // 过滤：如果有查询字符串，检查配置名称是否匹配
+            if !query.is_empty() && !config.name.to_lowercase().contains(query) {
+                continue;
+            }
+
+            // config.location 已经是 Option<lsp_types::Location>
+            if let Some(location) = config.location {
+                #[allow(deprecated)]
+                symbols.push(SymbolInformation {
+                    name: config.name.clone(),
+                    kind: SymbolKind::STRUCT,
+                    tags: None,
+                    deprecated: None,
+                    location,
+                    container_name: Some(format!("Config [{}]", config.prefix)),
+                });
+            }
+        }
+
+        Ok(symbols)
+    }
+
     /// 提取 TOML 文档符号
     fn extract_toml_symbols(&self, content: &str) -> Vec<lsp_types::DocumentSymbol> {
         use lsp_types::{DocumentSymbol, Position, Range, SymbolKind};
@@ -1265,6 +1480,10 @@ impl LspServer {
                     "Loading configuration from workspace: {}",
                     workspace_path.display()
                 );
+
+                // 存储 workspace_path
+                self.workspace_path = Some(workspace_path.clone());
+
                 self.config = ServerConfig::load(Some(&workspace_path));
 
                 // 验证配置
